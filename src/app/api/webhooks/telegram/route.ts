@@ -19,7 +19,10 @@ import {
   sendVoiceFromUrl,
   verifyTelegramWebhookRequest,
 } from "@/lib/telegram/client";
-import { escapeHtml } from "@/lib/telegram/format";
+import {
+  formatAgentMarkdownForTelegramHtml,
+  stripAgentMarkdown,
+} from "@/lib/telegram/format";
 
 import { uploadTtsToBlob } from "@/lib/blob/tts";
 
@@ -156,13 +159,17 @@ export async function POST(req: Request) {
 
   await recordAgentTokens(user.id, { input: reply.inputTokens, output: reply.outputTokens });
 
-  // 9) Send the reply (HTML-escaped). Optional TTS audio.
-  const safeReply = escapeHtml(reply.text);
+  // 9) Send the reply (markdown → Telegram HTML so **bold** / _italic_ /
+  // `code` render properly instead of leaking asterisks). Optional TTS audio
+  // uses the raw text — TTS providers shouldn't read the markup aloud.
+  const safeReply = formatAgentMarkdownForTelegramHtml(reply.text);
   await sendTelegramMessage({ chatId: message.chat.id, text: safeReply });
 
   if (user.ttsEnabled) {
     try {
-      const audio = await textToSpeech(reply.text);
+      // Markdown markers (**, *, `) read terribly when spoken; feed plain
+      // prose to the TTS engine instead.
+      const audio = await textToSpeech(stripAgentMarkdown(reply.text));
       if (audio) {
         const url = await uploadTtsToBlob(audio, `tts/${user.id}/${Date.now()}.opus`);
         if (url) await sendVoiceFromUrl({ chatId: message.chat.id, url });

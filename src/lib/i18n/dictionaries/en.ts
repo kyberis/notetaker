@@ -35,29 +35,29 @@ export type BotDictionary = {
 export const en: BotDictionary = {
   bot: {
     welcome:
-      "Hi, I'm Will. Send me a message — text, voice, photo, or PDF — and I'll save it as a note. I can also schedule reminders.",
-    linked: "Telegram linked. Send me anything and I'll keep it for you.",
+      "Greetings, milord. I am Will, your scribe. Send me a message — text, voice, photo, or PDF — and I'll set it down. I keep reminders too.",
+    linked: "Telegram linked, milord. Send me anything and I'll keep it for you.",
     linkExpired:
-      "That link expired. Open Will on the web and generate a fresh one from /settings/telegram.",
+      "That link hath expired. Open Will on the web and forge a fresh one from /settings/telegram.",
     notLinked:
-      "I don't recognise this Telegram account. Open Will on the web, go to /settings/telegram, and paste the link to connect.",
+      "I do not know this Telegram account, traveller. Open Will on the web, go to /settings/telegram, and paste the link to connect.",
     quotaExceeded: (limit) =>
-      `You've hit today's limit of ${limit} messages. It resets at 00:00 UTC.`,
-    saved: "Saved.",
-    savedWithReminder: (when) => `Saved. I'll ping you on ${when}.`,
-    tagPrompt: "Want to tag this note?",
+      `You've hit today's limit of ${limit} messages, milord. It resets at 00:00 UTC.`,
+    saved: "Noted.",
+    savedWithReminder: (when) => `Noted. I'll call upon you on ${when}.`,
+    tagPrompt: "Shall we tag this one?",
     tagApplied: (tags) => `Tagged: ${tags.map((t) => `#${t}`).join(" ")}`,
     tagSkipped: "No tags. Got it.",
-    reminderConfirm: (when) => `Reminder set for ${when}. Want to change it?`,
+    reminderConfirm: (when) => `Reminder set for ${when}. Wouldst thou change it?`,
     reminderFired: (body) => `Reminder: ${body}`,
-    listEmpty: "No notes yet. Send me anything and I'll start your journal.",
+    listEmpty: "The page is yet blank, milord. Send me anything and we'll begin.",
     listHeader: (count, range) =>
       `Last ${count} note${count === 1 ? "" : "s"} ${range}:`,
-    deleted: "Note deleted.",
-    error: "Something went wrong. Try again?",
+    deleted: "Note struck from the page.",
+    error: "Something went amiss. Try again?",
     languageChanged: (label) => `Got it — I'll reply in ${label} from now on.`,
-    voiceTooLong: "That voice note is too long. Keep it under 10 minutes.",
-    photoFailed: "I couldn't read that image. Send the text instead?",
+    voiceTooLong: "That voice note is too long, milord. Keep it under 10 minutes.",
+    photoFailed: "I couldn't decipher that image. Send the text instead?",
     pdfFailed:
       "I couldn't read that PDF. Send a smaller file or paste the text?",
   },
