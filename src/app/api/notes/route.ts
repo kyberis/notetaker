@@ -3,7 +3,11 @@ import { z } from "zod";
 
 import { requireSession } from "@/lib/auth/session";
 import { withApi } from "@/lib/http";
-import { listRecentNotes, searchNotes } from "@/lib/notes/persistence";
+import {
+  createNote,
+  listRecentNotes,
+  searchNotes,
+} from "@/lib/notes/persistence";
 
 const QuerySchema = z.object({
   q: z.string().max(200).optional(),
@@ -31,5 +35,41 @@ export async function GET(req: Request) {
         reminderAt: n.reminder?.dueAt.toISOString() ?? null,
       })),
     });
+  });
+}
+
+const CreateSchema = z.object({
+  body: z.string().min(1, "Note body is required").max(8000),
+  occurredAt: z.string().datetime().optional(),
+  tags: z
+    .array(z.string().min(1).max(32))
+    .max(10)
+    .optional(),
+});
+
+export async function POST(req: Request) {
+  return withApi(async () => {
+    const session = await requireSession();
+    const json = await req.json().catch(() => ({}));
+    const input = CreateSchema.parse(json);
+    const note = await createNote({
+      userId: session.user.id,
+      body: input.body,
+      source: "WEB",
+      occurredAt: input.occurredAt ? new Date(input.occurredAt) : undefined,
+      tagNames: input.tags,
+    });
+    return NextResponse.json(
+      {
+        note: {
+          id: note.id,
+          body: note.body,
+          source: note.source,
+          occurredAt: note.occurredAt.toISOString(),
+          createdAt: note.createdAt.toISOString(),
+        },
+      },
+      { status: 201 },
+    );
   });
 }

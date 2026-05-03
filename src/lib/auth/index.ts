@@ -10,6 +10,23 @@ import { verifyPassword } from "./password";
 
 const useGoogle = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
+/**
+ * Comma-separated allow-list of emails that should be promoted to admin on
+ * sign-in. Idempotent: if the user is already admin we don't touch the row.
+ * Trim + lowercase happens once at module load.
+ */
+const ADMIN_EMAILS: ReadonlySet<string> = new Set(
+  (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+function isAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return ADMIN_EMAILS.has(email.toLowerCase());
+}
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(db),
   session: { strategy: "jwt" },
@@ -83,7 +100,7 @@ export const authOptions: NextAuthOptions = {
       if (user.email) {
         const existing = await db.user.findUnique({
           where: { email: user.email.toLowerCase() },
-          select: { id: true, isActive: true, deletedAt: true },
+          select: { id: true, isActive: true, deletedAt: true, isAdmin: true },
         });
         if (existing && !existing.isActive) return false;
         if (existing?.deletedAt) {
@@ -91,6 +108,15 @@ export const authOptions: NextAuthOptions = {
             where: { id: existing.id },
             data: { deletedAt: null, deletionRemindersSent: 0 },
           });
+        }
+        // Env-driven admin bootstrap. Only flips the flag on, never off, so
+        // demoting an admin requires a manual UPDATE — by design.
+        if (existing && !existing.isAdmin && isAdminEmail(user.email)) {
+          await db.user.update({
+            where: { id: existing.id },
+            data: { isAdmin: true },
+          });
+          log.info("admin_promoted_via_env", { userId: existing.id });
         }
       }
       return true;

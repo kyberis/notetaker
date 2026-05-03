@@ -214,6 +214,17 @@ export const LANDING_COPY = {
  */
 export const CHANGELOG = [
   {
+    version: "0.4.0",
+    date: "2026-05-03",
+    title: "Web notes, edit anywhere, admin console",
+    highlights: [
+      "Capture notes from the web — quick-add box on the dashboard, ⌘/Ctrl + Enter to save, optional tags.",
+      "Edit and delete notes inline on the web, or ask Will on Telegram (\"fix the typo\", \"remove tag X\").",
+      "Bardic + rioplatense voice for the Telegram bot, with proper bold / italic rendering instead of literal asterisks.",
+      "Admin console at /admin for the team — overview metrics plus a searchable user list with Telegram link status.",
+    ],
+  },
+  {
     version: "0.3.0",
     date: "2026-05-03",
     title: "First Folio",

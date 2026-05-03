@@ -10,6 +10,7 @@ import {
   deleteNote as deleteNotePersist,
   listRecentNotes,
   searchNotes,
+  updateNote as updateNotePersist,
 } from "@/lib/notes/persistence";
 import { normalizeTagName } from "@/lib/notes/tags";
 import { scheduleReminder } from "@/lib/reminders/schedule";
@@ -138,6 +139,33 @@ export function buildNoteTools(opts: { userId: string; defaultSource: NoteSource
       execute: async ({ id }) => {
         const ok = await deleteNotePersist(opts.userId, id);
         return { deleted: ok };
+      },
+    }),
+
+    updateNote: tool({
+      description:
+        "Edit an existing note's body and/or tags. Use this when the user says things like 'change my note about X to ...', 'fix the typo in my last note', 'replace tags', or 'remove the tag X from my note'. Only ever pass an `id` you previously got from listRecentNotes / searchNotes / saveNote in this conversation. If `tags` is provided it REPLACES the full tag set (pass [] to strip every tag). Omit `body` or `tags` to leave them alone.",
+      inputSchema: z.object({
+        id: z.string(),
+        body: z.string().min(1).max(8000).optional(),
+        tags: z.array(z.string().min(1).max(32)).max(10).optional(),
+      }),
+      execute: async ({ id, body, tags }) => {
+        if (body === undefined && tags === undefined) {
+          return { updated: false, reason: "no_fields" };
+        }
+        const note = await updateNotePersist(opts.userId, id, {
+          body,
+          tagNames: tags,
+        });
+        if (!note) return { updated: false, reason: "not_found" };
+        return {
+          updated: true,
+          id: note.id,
+          body: note.body,
+          tags: note.tags.map((t) => t.tag.name),
+          updatedAt: note.updatedAt.toISOString(),
+        };
       },
     }),
 

@@ -126,3 +126,73 @@ export async function deleteNote(userId: string, noteId: string) {
   const result = await db.note.deleteMany({ where: { id: noteId, userId } });
   return result.count > 0;
 }
+
+export type UpdateNoteInput = {
+  body?: string;
+  occurredAt?: Date;
+  /**
+   * Replace the note's tag set with this exact list (after normalisation).
+   * Pass `[]` to strip every tag. Pass `undefined` to leave tags alone.
+   */
+  tagNames?: string[];
+};
+
+/**
+ * Edit a note. Scoped by `userId` so we can never touch another user's row.
+ * Returns `null` if no row matched. The tag set is reset to the new list
+ * (set semantics, not append) when `tagNames` is provided.
+ */
+export async function updateNote(
+  userId: string,
+  noteId: string,
+  patch: UpdateNoteInput,
+) {
+  return await db.$transaction(async (tx) => {
+    const existing = await tx.note.findFirst({
+      where: { id: noteId, userId },
+      select: { id: true },
+    });
+    if (!existing) return null;
+
+    if (patch.body !== undefined || patch.occurredAt !== undefined) {
+      await tx.note.update({
+        where: { id: noteId },
+        data: {
+          ...(patch.body !== undefined ? { body: patch.body } : {}),
+          ...(patch.occurredAt !== undefined
+            ? { occurredAt: patch.occurredAt }
+            : {}),
+        },
+      });
+    }
+
+    if (patch.tagNames !== undefined) {
+      const cleaned = Array.from(
+        new Set(patch.tagNames.map(normalizeTagName).filter(Boolean)),
+      );
+      await tx.noteTag.deleteMany({ where: { noteId } });
+      for (const name of cleaned) {
+        const tag = await tx.tag.upsert({
+          where: { userId_name: { userId, name } },
+          create: {
+            userId,
+            name,
+            isReminderTag: name === REMINDER_TAG_NAME,
+          },
+          update: {},
+        });
+        await tx.noteTag.create({
+          data: { noteId, tagId: tag.id },
+        });
+      }
+    }
+
+    return await tx.note.findUnique({
+      where: { id: noteId },
+      include: {
+        tags: { include: { tag: true } },
+        reminder: true,
+      },
+    });
+  });
+}

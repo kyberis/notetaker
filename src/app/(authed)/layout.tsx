@@ -20,6 +20,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <nav className="flex items-center gap-4 text-sm text-muted-foreground">
             <Link href="/app" className="hover:text-foreground">Notes</Link>
             <Link href="/settings" className="hover:text-foreground">Settings</Link>
+            {user.isAdmin ? (
+              <Link href="/admin" className="hover:text-foreground">
+                Admin
+              </Link>
+            ) : null}
             <span className="text-xs">{user.email}</span>
             <SignOutButton />
           </nav>

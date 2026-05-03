@@ -5,7 +5,8 @@ import { db } from "@/lib/db";
 import { isLocale, type Locale } from "@/lib/i18n/locale";
 import { bucketByDay } from "@/lib/notes/day-bucket";
 
-import { NoteCard } from "@/components/notes/note-card";
+import { EditableNoteCard } from "@/components/notes/editable-note-card";
+import { NoteComposer } from "@/components/notes/note-composer";
 
 export const dynamic = "force-dynamic";
 
@@ -31,24 +32,26 @@ export default async function NotesPage() {
   const buckets = bucketByDay(notes, userLocale);
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto space-y-6">
       {!tgUser?.telegramVerifiedAt ? (
-        <div className="mb-6 rounded-lg border bg-secondary/50 p-4">
+        <div className="rounded-lg border bg-secondary/50 p-4">
           <p className="text-sm">
-            Connect Telegram to start saving notes.
+            Connect Telegram to capture by chat, voice, photo, or PDF.
             <Link href="/settings/telegram" className="ml-1 underline">
               Open settings
             </Link>
-            .
+            . You can also write notes here from the web.
           </p>
         </div>
       ) : null}
+
+      <NoteComposer />
 
       {notes.length === 0 ? (
         <div className="rounded-lg border p-10 text-center">
           <h2 className="text-lg font-semibold">No notes yet</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Open Telegram and message Will. Anything you send becomes a note.
+            Write your first one above, or message Will on Telegram.
           </p>
         </div>
       ) : (
@@ -61,7 +64,8 @@ export default async function NotesPage() {
               <ul className="space-y-3">
                 {b.notes.map((n) => (
                   <li key={n.id}>
-                    <NoteCard
+                    <EditableNoteCard
+                      id={n.id}
                       body={n.body}
                       occurredAt={n.occurredAt}
                       source={n.source}
