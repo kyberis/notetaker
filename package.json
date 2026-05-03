@@ -25,7 +25,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "prisma:sync": "prisma db push --skip-generate",
+    "prisma:sync": "prisma db push",
     "prisma:studio": "prisma studio",
     "telegram:webhook": "node scripts/register-telegram-webhook.mjs"
   },
