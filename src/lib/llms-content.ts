@@ -28,6 +28,7 @@ ${APP_DESCRIPTION}
 
 - [Home](${site}/): hero, features overview, primary CTA.
 - [FAQ](${site}/faq): frequently asked questions about Telegram capture, privacy, AI models, and self-hosting.
+- [Changelog](${site}/changelog): release history with SemVer.
 - [Privacy](${site}/privacy): data policy, retention, user rights (GDPR baseline).
 - [Terms](${site}/terms): terms of service.
 - [Contact](${site}/contact): support and feedback channel.

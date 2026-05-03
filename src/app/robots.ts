@@ -9,6 +9,7 @@ import { getSiteUrl } from "@/lib/seo";
 const PUBLIC_ALLOW = [
   "/",
   "/faq",
+  "/changelog",
   "/privacy",
   "/terms",
   "/contact",
