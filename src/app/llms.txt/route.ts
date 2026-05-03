@@ -1,27 +1,22 @@
-import { APP_DESCRIPTION, APP_NAME, FAQ, FEATURES } from "@/lib/marketing-content";
+import { NextResponse } from "next/server";
 
-export const dynamic = "force-static";
+import { renderLlmsIndex } from "@/lib/llms-content";
 
+/**
+ * `/llms.txt` — structured pointer index per https://llmstxt.org so LLMs and
+ * AI agents can discover Will's documentation surface in one fetch.
+ *
+ * The verbose, single-file dump of the marketing copy lives at
+ * `/llms-full.txt`.
+ */
 export function GET() {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://will.trefolio.com";
-  const lines = [
-    `# ${APP_NAME}`,
-    "",
-    APP_DESCRIPTION,
-    "",
-    "## Features",
-    ...FEATURES.map((f) => `- ${f.title}: ${f.body}`),
-    "",
-    "## FAQ",
-    ...FAQ.flatMap((q) => [`### ${q.q}`, q.a, ""]),
-    "",
-    "## Links",
-    `- Web: ${base}`,
-    `- Privacy: ${base}/privacy`,
-    `- Terms: ${base}/terms`,
-    `- Source: https://github.com/kyberis/notetaker`,
-  ];
-  return new Response(lines.join("\n"), {
-    headers: { "content-type": "text/plain; charset=utf-8" },
+  return new NextResponse(renderLlmsIndex(), {
+    status: 200,
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "public, max-age=300, s-maxage=3600",
+    },
   });
 }
+
+export const dynamic = "force-static";

@@ -2,15 +2,25 @@ import type { Metadata } from "next";
 
 import { APP_NAME } from "@/lib/marketing-content";
 import { ACCOUNT_DELETION_GRACE_DAYS, CURRENT_TERMS_VERSION } from "@/lib/legal";
+import { breadcrumbJsonLd, buildMetadata, jsonLdScript } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildMetadata({
   title: "Privacy",
   description: `How ${APP_NAME} handles your data. GDPR-aligned: minimal collection, soft-delete, full export.`,
-};
+  path: "/privacy",
+});
 
 export default function PrivacyPage() {
   return (
     <article className="container mx-auto max-w-2xl py-16 prose dark:prose-invert">
+      <script
+        {...jsonLdScript(
+          breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: "Privacy", path: "/privacy" },
+          ]),
+        )}
+      />
       <h1>Privacy</h1>
       <p className="lead">
         Last updated: {new Date().toISOString().slice(0, 10)} · Version{" "}

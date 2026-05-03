@@ -2,12 +2,25 @@ import type { Metadata } from "next";
 
 import { APP_NAME } from "@/lib/marketing-content";
 import { CURRENT_TERMS_VERSION } from "@/lib/legal";
+import { breadcrumbJsonLd, buildMetadata, jsonLdScript } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Terms" };
+export const metadata: Metadata = buildMetadata({
+  title: "Terms",
+  description: `Terms of service for ${APP_NAME}. Plain-English summary up top, full legal text below.`,
+  path: "/terms",
+});
 
 export default function TermsPage() {
   return (
     <article className="container mx-auto max-w-2xl py-16 prose dark:prose-invert">
+      <script
+        {...jsonLdScript(
+          breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: "Terms", path: "/terms" },
+          ]),
+        )}
+      />
       <h1>Terms of service</h1>
       <p className="lead">
         Last updated: {new Date().toISOString().slice(0, 10)} · Version{" "}

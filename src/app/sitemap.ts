@@ -1,13 +1,33 @@
 import type { MetadataRoute } from "next";
 
+import { getSiteUrl } from "@/lib/seo";
+
+const PUBLIC_ROUTES: Array<{
+  path: string;
+  priority: number;
+  changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"];
+}> = [
+  { path: "", priority: 1.0, changeFrequency: "weekly" },
+  { path: "/faq", priority: 0.8, changeFrequency: "monthly" },
+  { path: "/privacy", priority: 0.4, changeFrequency: "yearly" },
+  { path: "/terms", priority: 0.4, changeFrequency: "yearly" },
+  { path: "/contact", priority: 0.5, changeFrequency: "yearly" },
+];
+
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://will.trefolio.com";
-  const now = new Date();
-  const paths = ["", "/privacy", "/terms", "/faq", "/contact"];
-  return paths.map((p) => ({
-    url: `${base}${p || "/"}`,
-    lastModified: now,
-    changeFrequency: "weekly" as const,
-    priority: p === "" ? 1 : 0.6,
+  const site = getSiteUrl();
+  const lastModified = new Date();
+
+  return PUBLIC_ROUTES.map(({ path, priority, changeFrequency }) => ({
+    url: `${site}${path || "/"}`,
+    lastModified,
+    changeFrequency,
+    priority,
+    alternates: {
+      languages: {
+        "en-US": `${site}${path || "/"}`,
+        "x-default": `${site}${path || "/"}`,
+      },
+    },
   }));
 }
