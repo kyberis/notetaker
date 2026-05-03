@@ -39,7 +39,7 @@ export default async function OGImage() {
             width={120}
             height={120}
             style={{
-              borderRadius: 28,
+              borderRadius: 9999,
               border: "3px solid #A5F3FC",
             }}
             alt=""

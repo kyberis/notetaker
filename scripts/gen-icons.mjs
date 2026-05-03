@@ -1,47 +1,77 @@
+/**
+ * Regenerate Will's icon set from the canonical Shakespeare portrait.
+ *
+ * Source of truth:
+ *   public/will-portrait-source.png  — the 1024x1024 cartoon portrait of
+ *   "Will" (William Shakespeare illustration) used as the brand mark.
+ *
+ * Outputs (all in /public, used by manifest.ts, layout.tsx, opengraph-image,
+ * apple-touch icon, and the PWA installer):
+ *   will-icon-192.png         · PWA icon
+ *   will-icon-512.png         · PWA icon + OG card hero
+ *   will-icon-maskable.png    · Android adaptive icon (safe inner zone)
+ *   will-icon.png             · 1024px hi-res master used by docs / blog
+ *   apple-icon.png            · iOS home-screen (180px)
+ *
+ * Plus the Next.js favicon convention at src/app/icon.png (32px).
+ *
+ * Run with:  node scripts/gen-icons.mjs
+ */
 import sharp from "sharp";
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const svg = readFileSync("public/will-avatar.svg");
+const SRC = "public/will-portrait-source.png";
+const PUBLIC = "public";
+const APP = "src/app";
 
-const out = "public";
-mkdirSync(out, { recursive: true });
+const buf = readFileSync(SRC);
+const meta = await sharp(buf).metadata();
+console.log("source:", meta.width, "x", meta.height);
 
-async function render(size, file, opts = {}) {
-  // Cap density so we don't blow past sharp's pixel limit on large outputs.
-  const density = Math.min(2400, Math.max(72, size * 4));
-  const buf = await sharp(svg, { density, limitInputPixels: false })
-    .resize(size, size, { fit: "contain", background: opts.bg ?? { r: 15, g: 23, b: 42, alpha: 1 } })
-    .png()
+mkdirSync(PUBLIC, { recursive: true });
+mkdirSync(APP, { recursive: true });
+
+const NAVY = { r: 15, g: 23, b: 42, alpha: 1 };
+
+async function emit(file, size, opts = {}) {
+  const out = await sharp(buf, { limitInputPixels: false })
+    .resize(size, size, { fit: "cover", background: opts.bg ?? NAVY })
+    .png({ compressionLevel: 9 })
     .toBuffer();
-  writeFileSync(join(out, file), buf);
-  console.log(file, buf.length);
+  writeFileSync(file, out);
+  console.log(file, out.length);
 }
 
-await render(192, "will-icon-192.png");
-await render(512, "will-icon-512.png");
-// Maskable: ensure safe zone — render the SVG inside a 80% inner box on the navy background.
-const maskableSize = 512;
-const inner = Math.round(maskableSize * 0.78);
-const innerBuf = await sharp(svg, { density: Math.max(72, inner * 4) })
-  .resize(inner, inner, { fit: "contain", background: { r: 15, g: 23, b: 42, alpha: 1 } })
-  .png()
-  .toBuffer();
-const maskBg = await sharp({
-  create: {
-    width: maskableSize,
-    height: maskableSize,
-    channels: 4,
-    background: { r: 15, g: 23, b: 42, alpha: 1 },
-  },
-})
-  .composite([
-    { input: innerBuf, top: Math.round((maskableSize - inner) / 2), left: Math.round((maskableSize - inner) / 2) },
-  ])
-  .png()
-  .toBuffer();
-writeFileSync(join(out, "will-icon-maskable.png"), maskBg);
-console.log("will-icon-maskable.png", maskBg.length);
+await emit(join(PUBLIC, "will-icon-192.png"), 192);
+await emit(join(PUBLIC, "will-icon-512.png"), 512);
+await emit(join(PUBLIC, "will-icon.png"), 1024);
+await emit(join(PUBLIC, "apple-icon.png"), 180);
 
-await render(180, "apple-icon.png");
-await render(1024, "will-icon.png");
+// Next.js convention: src/app/icon.png is auto-served as /favicon.
+// 64px gives crisp 32px and 16px downscaled by Next on demand.
+await emit(join(APP, "icon.png"), 64);
+
+// Maskable: pad the portrait into the centre 78% of the frame so Android
+// can crop a circle without chopping the ruff or the floating quill.
+{
+  const size = 512;
+  const inner = Math.round(size * 0.78);
+  const padded = await sharp(buf, { limitInputPixels: false })
+    .resize(inner, inner, { fit: "cover", background: NAVY })
+    .toBuffer();
+  const out = await sharp({
+    create: { width: size, height: size, channels: 4, background: NAVY },
+  })
+    .composite([
+      {
+        input: padded,
+        top: Math.round((size - inner) / 2),
+        left: Math.round((size - inner) / 2),
+      },
+    ])
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+  writeFileSync(join(PUBLIC, "will-icon-maskable.png"), out);
+  console.log(join(PUBLIC, "will-icon-maskable.png"), out.length);
+}
