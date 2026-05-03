@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then npm run prisma:deploy && npm run build; else npm run build; fi",
+  "crons": [
+    { "path": "/api/cron/reminders", "schedule": "* * * * *" },
+    { "path": "/api/cron/account-purge", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/deletion-reminders", "schedule": "0 9 * * *" }
+  ]
+}

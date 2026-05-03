@@ -1,0 +1,292 @@
+// Will — Telegram-first note-taking AI assistant.
+// Schema is intentionally small: notes + tags + reminders is the whole product.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Source channel a note came in through. Used for analytics and to render
+/// per-source icons in the web list. WEB is reserved: today the web app is
+/// read-only, but we may add quick-add later.
+enum NoteSource {
+  TELEGRAM_TEXT
+  TELEGRAM_VOICE
+  TELEGRAM_PHOTO
+  TELEGRAM_PDF
+  WEB
+}
+
+/// Lifecycle of a scheduled reminder. The cron dispatcher claims PENDING
+/// rows whose `dueAt <= now()`, sends the Telegram message, then flips to
+/// SENT. Failures bump `attempts` and stay PENDING for retry up to 3 times,
+/// after which the row goes FAILED and a fallback email is queued.
+enum ReminderStatus {
+  PENDING
+  SENT
+  CANCELLED
+  FAILED
+}
+
+/// Why someone wrote to /contact (DSAR / abuse have a stricter SLA).
+enum ContactMessageKind {
+  PRIVACY
+  ABUSE
+  BUG
+  GENERAL
+}
+
+model User {
+  id                       String              @id @default(cuid())
+  email                    String              @unique
+  /// Null for OAuth-only users (Google).
+  passwordHash             String?
+  name                     String?
+  image                    String?
+  emailVerified            DateTime?
+  isAdmin                  Boolean             @default(false)
+  isActive                 Boolean             @default(true)
+
+  /// Preferred conversation language for the agent. Web UI is English-only.
+  /// Supported in v1: en | es | pt | ar.
+  locale                   String              @default("en")
+
+  /// Per-user daily cap on agent messages (chat web + Telegram combined).
+  dailyAgentMessageLimit   Int                 @default(30)
+
+  /// Telegram identity. We key on `telegramUserId` (Telegram's stable numeric
+  /// id) and remember `chat_id` for outbound messages. `telegramUsername` is
+  /// purely informational because users can change it.
+  telegramUserId           BigInt?             @unique
+  telegramUsername         String?
+  telegramChatId           BigInt?
+  telegramVerifiedAt       DateTime?
+  /// 16-char one-time deep-link code embedded in `t.me/<bot>?start=<code>`.
+  /// Telegram caps `start` at 64 chars so we cannot use signed JWTs there.
+  telegramLinkCode         String?             @unique
+  telegramLinkCodeExpires  DateTime?
+
+  /// User opt-in: whether the bot may send the audio-reply variant of replies.
+  ttsEnabled               Boolean             @default(false)
+
+  /// GDPR Art. 7(1) — demonstrable consent. Stamped when the user actively
+  /// accepts the current Terms + Privacy version.
+  acceptedTermsAt          DateTime?
+  acceptedTermsVersion     String?
+
+  /// Soft-delete marker. `null` for active accounts. The /account/delete
+  /// endpoint sets this to `now()`. The `account-purge` cron hard-deletes
+  /// rows whose `deletedAt < now() - 30 days`. A user can restore by
+  /// signing back in within the grace window.
+  deletedAt                DateTime?
+  /// Bitmask of soft-delete reminder emails sent (bit 0 = T-7, bit 1 = T-1).
+  /// Cleared when `deletedAt` is reset.
+  deletionRemindersSent    Int                 @default(0)
+
+  lastSeenAt               DateTime?
+
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+
+  accounts                 Account[]
+  passkeys                 Passkey[]
+  notes                    Note[]
+  tags                     Tag[]
+  reminders                Reminder[]
+  agentUsage               AgentMessageUsage[]
+  apiTokens                ApiToken[]
+  contactMessages          ContactMessage[]
+
+  @@index([deletedAt])
+}
+
+/// NextAuth `Account` row — persists Google OAuth identity. We only ever
+/// link an account on first Google sign-in and let NextAuth manage it.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+/// WebAuthn / FIDO2 credential. Sign-in goes through a Credentials provider
+/// that calls @simplewebauthn/server with the public key here.
+model Passkey {
+  /// Base64URL-encoded credential id (also the WebAuthn `rawId`).
+  id                  String    @id
+  userId              String
+  credentialPublicKey String
+  counter             Int       @default(0)
+  deviceType          String
+  backedUp            Boolean   @default(false)
+  transports          String[]  @default([])
+  name                String
+  lastUsedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// A user-created tag. Per-user namespace (one user can have #idea while
+/// another has a different #idea — they don't collide).
+model Tag {
+  id        String    @id @default(cuid())
+  userId    String
+  /// Lowercase, no leading "#", no spaces. Enforced at the application
+  /// boundary in src/lib/notes/tags.ts.
+  name      String
+  /// `true` if this tag should be treated as a reminder anchor: when the
+  /// user adds it to a note we offer to set a reminder. The default tag
+  /// "reminder" is seeded with this flag.
+  isReminderTag Boolean @default(false)
+  createdAt DateTime  @default(now())
+  notes     NoteTag[]
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Note {
+  id          String     @id @default(cuid())
+  userId      String
+  body        String     @db.Text
+  source      NoteSource
+  /// "Logical" date of the note. Defaults to createdAt; the agent may set it
+  /// to "yesterday" if the user explicitly says so. Used for the day-grouped
+  /// web list and the agent's `since` filters.
+  occurredAt  DateTime
+  /// Free-form metadata snapshot from the source: original Telegram message
+  /// id, voice duration, photo file_id, etc. Never displayed; useful for
+  /// debugging and future re-renders.
+  sourceMeta  Json?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tags        NoteTag[]
+  reminder    Reminder?
+
+  @@index([userId, occurredAt])
+  @@index([userId, createdAt])
+}
+
+model NoteTag {
+  noteId String
+  tagId  String
+  note   Note   @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, tagId])
+  @@index([tagId])
+}
+
+model Reminder {
+  id        String         @id @default(cuid())
+  userId    String
+  noteId    String         @unique
+  /// UTC timestamp when the reminder is due. The cron compares with `now()`.
+  dueAt     DateTime
+  /// Human-readable echo of the natural-language phrase the user uttered
+  /// ("tomorrow at 9am"). Surfaced back in the bot reply so they can
+  /// double-check the parse before it fires.
+  naturalText String?
+  status    ReminderStatus @default(PENDING)
+  attempts  Int            @default(0)
+  sentAt    DateTime?
+  failedAt  DateTime?
+  cancelledAt DateTime?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  note      Note           @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([status, dueAt])
+  @@index([userId])
+}
+
+/// Daily counter of agent messages per user (UTC). `count` gates the daily
+/// quota; `inputTokens` / `outputTokens` are informational and feed admin
+/// analytics so we can tune per-user limits.
+model AgentMessageUsage {
+  id           String   @id @default(cuid())
+  userId       String
+  day          DateTime @db.Date
+  count        Int      @default(0)
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, day])
+  @@index([userId])
+}
+
+/// Personal Access Token reserved for a future per-user MCP server. Not
+/// exposed in v1 UI but the column exists so we don't need a migration when
+/// MCP lands.
+model ApiToken {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  tokenHash  String    @unique
+  prefix     String
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+/// Public contact form messages. The admin inbox lives at /admin/contact in
+/// a future minor release; today we just persist with the right shape.
+model ContactMessage {
+  id         String             @id @default(cuid())
+  kind       ContactMessageKind @default(GENERAL)
+  name       String
+  email      String
+  body       String             @db.Text
+  userId     String?
+  user       User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ip         String?
+  userAgent  String?            @db.Text
+  readAt     DateTime?
+  repliedAt  DateTime?
+  archivedAt DateTime?
+  createdAt  DateTime           @default(now())
+
+  @@index([createdAt])
+  @@index([kind])
+  @@index([userId])
+}
+
+/// Idempotency log for verification-email tokens we've already consumed.
+/// Prevents replay attacks within the JWT expiry window.
+model UsedVerificationToken {
+  jti       String   @id
+  userId    String
+  consumedAt DateTime @default(now())
+
+  @@index([userId])
+}
