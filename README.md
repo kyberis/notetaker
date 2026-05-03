@@ -63,8 +63,8 @@ npm install
 cp .env.example .env.local
 # fill in DATABASE_URL, NEXTAUTH_SECRET, OPENAI_API_KEY (minimum)
 
-# 4. Migrate
-npm run prisma:migrate
+# 4. Push schema (creates tables in your local DB)
+npm run prisma:sync
 
 # 5. Run
 npm run dev
@@ -151,7 +151,7 @@ docs/                  LinkedIn launch posts, screenshots
 1. Create a Neon Postgres. Use the **pooled** connection URL.
 2. Import the repo in Vercel and set env vars from sections 1–2 of `.env.example`.
 3. `vercel link` locally so `VERCEL_OIDC_TOKEN` is provisioned for AI Gateway.
-4. Deploy. Production deploys run `prisma migrate deploy` automatically.
+4. Deploy. Production deploys run `prisma db push` automatically (see `prisma:sync` in `package.json`).
 5. Add a custom domain (e.g. `will.trefolio.com`) and update `NEXTAUTH_URL` + `APP_BASE_URL` + `NEXT_PUBLIC_APP_URL`.
 6. Configure Telegram bot via `npm run telegram:webhook` (after `TELEGRAM_WEBHOOK_URL` is set).
 
