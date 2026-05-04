@@ -12,10 +12,13 @@ import { isLocale } from "@/lib/i18n/locale";
 import { log } from "@/lib/log";
 import { buildRateLimiter, enforceLimit } from "@/lib/rate-limit";
 import {
+  deleteTelegramMessage,
   downloadTelegramFile,
+  editTelegramMessage,
   getTelegramFileUrl,
   sendChatAction,
   sendTelegramMessage,
+  sendTelegramStatusMessage,
   sendVoiceFromUrl,
   verifyTelegramWebhookRequest,
 } from "@/lib/telegram/client";
@@ -23,6 +26,10 @@ import {
   formatAgentMarkdownForTelegramHtml,
   stripAgentMarkdown,
 } from "@/lib/telegram/format";
+import {
+  initialThinkingLabel,
+  toolProgressLabel,
+} from "@/lib/ai/tool-progress";
 
 import { uploadTtsToBlob } from "@/lib/blob/tts";
 
@@ -139,6 +146,16 @@ export async function POST(req: Request) {
   // 7) Build short conversation history from previous turns.
   const messages = await loadHistory(user.id, materialised.text);
 
+  // 7b) Send a single "status" message we can edit in place as the agent
+  // runs. Gives the user a sense of progress instead of a silent typing dot.
+  // If sending fails (transient network), we fall back to the typing
+  // indicator only — the agent still runs to completion.
+  const status = await sendTelegramStatusMessage({
+    chatId: message.chat.id,
+    text: initialThinkingLabel(locale),
+  });
+  let lastStatusText = initialThinkingLabel(locale);
+
   // 8) Run the agent.
   let reply: { text: string; inputTokens?: number; outputTokens?: number };
   try {
@@ -147,21 +164,52 @@ export async function POST(req: Request) {
       locale,
       source: materialised.source,
       messages,
+      onStep: status
+        ? async ({ toolNames }) => {
+            if (toolNames.length === 0) return;
+            // Show the most recent tool's friendly label. If the same tool
+            // ran twice in a row Telegram returns "message is not modified",
+            // which the helper swallows.
+            const next = toolProgressLabel(toolNames[toolNames.length - 1]!, locale);
+            if (next === lastStatusText) return;
+            lastStatusText = next;
+            await editTelegramMessage({
+              chatId: message.chat.id,
+              messageId: status.messageId,
+              text: next,
+            });
+          }
+        : undefined,
     });
   } catch (err) {
     log.error("telegram_agent_failed", {
       userId: user.id,
       error: err instanceof Error ? err.message : String(err),
     });
+    if (status) {
+      await deleteTelegramMessage({
+        chatId: message.chat.id,
+        messageId: status.messageId,
+      });
+    }
     await sendTelegramMessage({ chatId: message.chat.id, text: D.bot.error });
     return NextResponse.json({ ok: true });
   }
 
   await recordAgentTokens(user.id, { input: reply.inputTokens, output: reply.outputTokens });
 
-  // 9) Send the reply (markdown → Telegram HTML so **bold** / _italic_ /
-  // `code` render properly instead of leaking asterisks). Optional TTS audio
-  // uses the raw text — TTS providers shouldn't read the markup aloud.
+  // 9) Replace the status message with the final reply. Delete-then-send
+  // (vs editing the status into the reply) keeps inline keyboards / voice
+  // uploads working uniformly later if we add them.
+  if (status) {
+    await deleteTelegramMessage({
+      chatId: message.chat.id,
+      messageId: status.messageId,
+    });
+  }
+  // (markdown → Telegram HTML so **bold** / _italic_ / `code` render
+  // properly instead of leaking asterisks). Optional TTS audio uses the
+  // raw text — TTS providers shouldn't read the markup aloud.
   const safeReply = formatAgentMarkdownForTelegramHtml(reply.text);
   await sendTelegramMessage({ chatId: message.chat.id, text: safeReply });
 

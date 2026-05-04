@@ -214,6 +214,16 @@ export const LANDING_COPY = {
  */
 export const CHANGELOG = [
   {
+    version: "0.5.0",
+    date: "2026-05-04",
+    title: "Live progress in Telegram",
+    highlights: [
+      "Will now narrates each step inside Telegram — \"Saving your note…\", \"Suggesting tags…\", \"Scheduling a reminder…\" — so you see the work happening rather than a silent typing dot.",
+      "The status line is edited in place and disappears the moment the final reply arrives, keeping the chat tidy.",
+      "Localised across English, Spanish, Portuguese and Arabic.",
+    ],
+  },
+  {
     version: "0.4.0",
     date: "2026-05-03",
     title: "Web notes, edit anywhere, admin console",

@@ -13,6 +13,14 @@ export type RunNoteAgentInput = {
   locale: Locale;
   source: NoteSourceLiteral;
   messages: ModelMessage[];
+  /**
+   * Fired after each agent step completes, with the tool names that ran
+   * during that step. Used by the Telegram webhook to edit a "status"
+   * message in place ("Saving your note…", "Suggesting tags…") so the
+   * user sees forward motion. Errors thrown by the callback are
+   * swallowed — progress UI must never break the agent loop.
+   */
+  onStep?: (event: { toolNames: string[]; stepNumber: number }) => void | Promise<void>;
 };
 
 export type RunNoteAgentResult = {
@@ -42,6 +50,23 @@ export async function runNoteAgent(input: RunNoteAgentInput): Promise<RunNoteAge
       tools,
       stopWhen: stepCountIs(6),
       temperature: 0.4,
+      onStepFinish: input.onStep
+        ? async (step) => {
+            const toolNames = (step.toolCalls ?? [])
+              .map((c) => c.toolName)
+              .filter((name): name is string => typeof name === "string");
+            try {
+              await input.onStep!({
+                toolNames,
+                stepNumber: step.stepNumber ?? 0,
+              });
+            } catch (err) {
+              log.warn("run_note_agent_on_step_threw", {
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          }
+        : undefined,
     });
     return {
       text: result.text,

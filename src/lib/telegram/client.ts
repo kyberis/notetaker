@@ -95,6 +95,107 @@ export async function sendChatAction(chatId: number | bigint, action: "typing" |
   }
 }
 
+/**
+ * Send a single short status message and return the Telegram `message_id` so
+ * the caller can edit it as work progresses (e.g. show which tool the agent
+ * is running). HTML parse mode by default. Returns `null` on failure so
+ * callers can degrade silently to a typing indicator only.
+ */
+export async function sendTelegramStatusMessage(opts: {
+  chatId: number | bigint;
+  text: string;
+}): Promise<{ messageId: number } | null> {
+  let token: string;
+  try {
+    token = getToken();
+  } catch {
+    return null;
+  }
+  const chatId = typeof opts.chatId === "bigint" ? opts.chatId.toString() : opts.chatId;
+  try {
+    const res = await fetch(`${API_BASE}/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: opts.text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { ok?: boolean; result?: { message_id?: number } };
+    if (!data.ok || typeof data.result?.message_id !== "number") return null;
+    return { messageId: data.result.message_id };
+  } catch (err) {
+    log.warn("telegram_status_send_threw", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
+/**
+ * Edit a previously sent message's text. Best-effort: silently swallows the
+ * common "message is not modified" error and any transport failures, since
+ * progress messages are a UX nicety, not a correctness requirement.
+ */
+export async function editTelegramMessage(opts: {
+  chatId: number | bigint;
+  messageId: number;
+  text: string;
+}): Promise<{ ok: boolean }> {
+  let token: string;
+  try {
+    token = getToken();
+  } catch {
+    return { ok: false };
+  }
+  const chatId = typeof opts.chatId === "bigint" ? opts.chatId.toString() : opts.chatId;
+  try {
+    const res = await fetch(`${API_BASE}/bot${token}/editMessageText`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: opts.messageId,
+        text: opts.text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+      }),
+    });
+    return { ok: res.ok };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * Delete a Telegram message. Best-effort; failures (already deleted, too old,
+ * permissions, network) are swallowed.
+ */
+export async function deleteTelegramMessage(opts: {
+  chatId: number | bigint;
+  messageId: number;
+}): Promise<void> {
+  let token: string;
+  try {
+    token = getToken();
+  } catch {
+    return;
+  }
+  const chatId = typeof opts.chatId === "bigint" ? opts.chatId.toString() : opts.chatId;
+  try {
+    await fetch(`${API_BASE}/bot${token}/deleteMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, message_id: opts.messageId }),
+    });
+  } catch {
+    // best-effort
+  }
+}
+
 export async function answerCallbackQuery(callbackQueryId: string, text?: string): Promise<void> {
   let token: string;
   try {
