@@ -1,0 +1,62 @@
+---
+description: Trigger conditions for involving the legal-advisor skill — privacy, GDPR, AI data flows, third-party integrations, marketing claims.
+globs:
+alwaysApply: true
+---
+
+# Legal Compliance Guardrails
+
+Before completing any change, check if it triggers a legal review. If
+**any** condition below matches, read and follow the `legal-advisor`
+skill at [`.cursor/skills/legal-advisor/SKILL.md`](../skills/legal-advisor/SKILL.md).
+
+## Trigger Conditions
+
+Involve `legal-advisor` when the change:
+
+1. **Collects new user data** — any new form field, API parameter, or
+   stored value derived from user input (especially note bodies, voice
+   audio, photo files, PDFs, or anything else the user sends).
+2. **Adds or changes a third-party service** — new API integration, SDK,
+   analytics provider, or external data processor (a model swap, a new
+   Vercel sub-product, a Telegram feature that exposes new fields).
+3. **Modifies AI features** — changes to prompts, the data Will sends to
+   the model, the tools the agent can call, or how AI output is
+   displayed.
+4. **Changes signup, login, or consent flows** — Google sign-in,
+   email + password, passkey, accept-terms gate, deletion grace window.
+5. **Updates marketing copy** — landing, FAQ, privacy, changelog,
+   `llms.txt`, especially claims about security, privacy, "open source",
+   or self-hostability.
+6. **Modifies cookies / sessions** — adding cookies, changing JWT
+   lifetime, adding client-side storage, broadening CORS.
+7. **Changes data export or deletion** — `/api/account/export`,
+   `/api/account/delete`, account purge cron, deletion-reminder emails.
+8. **Modifies middleware or security headers** — `src/proxy.ts`, CSP,
+   CSRF, rate limiting, signed-webhook verification.
+
+## Quick Checks (No Full Review Needed)
+
+If the change is purely cosmetic (styling, layout) or internal
+(refactor without behaviour change), no legal review is needed. But
+verify:
+
+- No new data fields are being persisted.
+- No new third-party requests are being made.
+- Privacy claims in
+  [`src/lib/marketing-content.ts`](../../src/lib/marketing-content.ts)
+  remain accurate (no telemetry, MIT, self-hostable, GDPR-compliant
+  with full export + 30-day soft-delete).
+- The CHANGELOG doesn't promise something the code doesn't deliver.
+
+## Key Legal-adjacent Documents
+
+- Privacy claims + FAQ: `marketing-content.ts` (`FAQ`, `LANDING_COPY`,
+  any `PRIVACY_*` exports).
+- License: [`LICENSE`](../../LICENSE) (MIT).
+- Terms version: `CURRENT_TERMS_VERSION` in
+  [`src/lib/legal.ts`](../../src/lib/legal.ts) — bump when Terms or
+  Privacy materially change.
+- Soft-delete grace: `ACCOUNT_DELETION_GRACE_DAYS` in
+  [`src/lib/legal.ts`](../../src/lib/legal.ts) — currently 30 days,
+  documented in marketing copy. Do not change without legal review.

@@ -1,0 +1,57 @@
+---
+description: The knowledge/ folder is the system of record. Every new feature gets a spec, every cross-cutting decision gets a design doc.
+globs:
+alwaysApply: true
+---
+
+# Knowledge Base Maintenance
+
+The `knowledge/` folder is the system of record for this codebase. It lives
+alongside [`AGENTS.md`](../../AGENTS.md) at the repository root.
+
+> Read [`AGENTS.md`](../../AGENTS.md) and
+> [`knowledge/product-specs/index.md`](../../knowledge/product-specs/index.md)
+> at the start of any non-trivial task. The agent that comes after you
+> will thank you.
+
+## When to update
+
+Update the knowledge base when you:
+
+1. **Add a new user-visible feature** → create a spec in
+   `knowledge/product-specs/<slug>.md` using
+   [`knowledge/templates/product-spec.template.md`](../../knowledge/templates/product-spec.template.md)
+   and add it to [`knowledge/product-specs/index.md`](../../knowledge/product-specs/index.md).
+   **This is mandatory.**
+2. **Change an existing feature's data model, API shape, agent tool
+   surface, or AI prompt** → edit its spec.
+3. **Add or change a Prisma model** → if the change is non-trivial,
+   document it in the relevant spec; the migration itself is the source
+   of truth.
+4. **Introduce an architectural pattern worth preserving** → add a design
+   doc at `knowledge/design-docs/<slug>.md` and list it in
+   [`knowledge/design-docs/index.md`](../../knowledge/design-docs/index.md).
+5. **Change `.cursor/skills/` or `.cursor/rules/`** → cross-link the
+   relevant spec to the updated skill or rule.
+6. **Ship something user-visible** → also add a CHANGELOG entry to
+   [`src/lib/marketing-content.ts`](../../src/lib/marketing-content.ts).
+   See [`changelog`](changelog.mdc).
+
+## Specs are not marketing copy
+
+Specs describe what a feature does and how to change it safely. Marketing
+language (claims, benefits, taglines) belongs in
+[`src/lib/marketing-content.ts`](../../src/lib/marketing-content.ts).
+Never duplicate.
+
+## Plans for non-trivial work
+
+- Active multi-step plans: drop a markdown file in
+  [`knowledge/exec-plans/active/`](../../knowledge/exec-plans/active).
+- When the plan ships: move the file to `completed/`. Don't delete it —
+  the next agent learns from how the previous one approached the work.
+
+## When in doubt
+
+Link instead of inlining. The knowledge base works because it's a graph,
+not a single document.

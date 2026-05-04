@@ -1,0 +1,73 @@
+---
+description: User-visible CHANGELOG lives in src/lib/marketing-content.ts. Add an entry for every shipped user-visible change.
+globs:
+alwaysApply: true
+---
+
+# Changelog
+
+The user-visible changelog is **not** a separate file. It lives in
+[`src/lib/marketing-content.ts`](../../src/lib/marketing-content.ts)
+under the `CHANGELOG` constant, and it feeds:
+
+- `/changelog` public page.
+- `llms.txt` / `llms-full.txt` summaries.
+- JSON-LD that AI crawlers index.
+
+## When to add an entry
+
+Add a CHANGELOG entry whenever you ship a user-visible change. That
+includes:
+
+- New feature, capability, or surface (UI page, agent tool, integration).
+- Notable improvement (faster reminders, smarter tagging, redesigned
+  screen).
+- Bug fix that users would have felt.
+
+Skip entries for: pure refactors, dependency bumps without behaviour
+change, internal tooling, knowledge-base edits.
+
+## How to add an entry
+
+1. **Decide the version.** Semver:
+   - Patch (`0.x.y` → `0.x.y+1`) for fixes and small tweaks.
+   - Minor (`0.x.0` → `0.(x+1).0`) for new features and noticeable
+     improvements.
+   - Major reserved for breaking changes or the 1.0 positioning moment.
+   - Pre-1.0 the project uses `0.x.y` and bumps minor liberally.
+2. Add a new entry **at the top** of `CHANGELOG`. Each entry has
+   `version`, `date` (ISO), `title` (one short noun-phrase), and
+   `highlights` (1-4 bullets describing what changed for the user).
+3. **Voice**: factual, benefit-led, concise. Match the existing entries
+   in [`src/lib/marketing-content.ts`](../../src/lib/marketing-content.ts).
+   The CHANGELOG is not the place for the bardic flourish — the marketing
+   landing carries that. See
+   [`.cursor/skills/ux-writer/SKILL.md`](../skills/ux-writer/SKILL.md).
+4. **Web is English-only** — there is no `CHANGELOG_ES`. The agent
+   speaks four languages but the marketing site does not.
+5. Don't bump the `version` in `package.json` for every shipped change —
+   the marketing CHANGELOG is the user-facing version number;
+   `package.json` stays at its current value until a deliberate release
+   moment.
+
+## Example
+
+```ts
+{
+  version: "0.7.0",
+  date: "2026-05-12",
+  title: "Search your notes from chat",
+  highlights: [
+    "Ask Will \"what did I write about Mum last week?\" and he scans your notes for matches.",
+    "Works in all four agent languages.",
+    "Limited to your most recent 200 notes for now — full-text search comes later.",
+  ],
+},
+```
+
+## Cross-references
+
+- Specs go in [`knowledge/product-specs/`](../../knowledge/product-specs).
+  See [`.cursor/rules/knowledge-base.mdc`](knowledge-base.mdc).
+- Marketing copy edits beyond CHANGELOG go in the same file
+  ([`src/lib/marketing-content.ts`](../../src/lib/marketing-content.ts)).
