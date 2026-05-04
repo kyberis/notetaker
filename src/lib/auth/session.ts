@@ -49,11 +49,15 @@ export async function pageRequireAuth(): Promise<{ user: AppSession["user"]; loc
       acceptedTermsVersion: true,
       locale: true,
       deletedAt: true,
+      isActive: true,
       isAdmin: true,
     },
   });
   if (!fresh) redirect("/login");
   if (fresh.deletedAt) redirect("/account/restore");
+  // Disabled by an admin: kick the session out. The login route shows an
+  // "account disabled" hint when ?error=disabled is present.
+  if (!fresh.isActive) redirect("/login?error=disabled");
   return {
     user: { ...session.user, isAdmin: fresh.isAdmin },
     locale: fresh.locale,
@@ -70,9 +74,10 @@ export async function requireAdmin(): Promise<AppSession> {
   const session = await requireSession();
   const fresh = await db.user.findUnique({
     where: { id: session.user.id },
-    select: { isAdmin: true, deletedAt: true },
+    select: { isAdmin: true, isActive: true, deletedAt: true },
   });
   if (!fresh || fresh.deletedAt) throw errors.unauthorized();
+  if (!fresh.isActive) throw errors.unauthorized();
   if (!fresh.isAdmin) throw errors.forbidden("Admin only.");
   return { user: { ...session.user, isAdmin: true } };
 }

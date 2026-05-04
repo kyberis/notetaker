@@ -214,6 +214,16 @@ export const LANDING_COPY = {
  */
 export const CHANGELOG = [
   {
+    version: "0.6.0",
+    date: "2026-05-04",
+    title: "Admin can disable accounts",
+    highlights: [
+      "Administrators can now disable a user from /admin/users with a single click. Disabled accounts are signed out on their next request and their Telegram messages are silently dropped until re-enabled.",
+      "Disabled users see a dedicated \"Your account has been disabled\" notice on the sign-in screen instead of a generic error.",
+      "Admins cannot disable their own account — keeps you from locking yourself out of the console.",
+    ],
+  },
+  {
     version: "0.5.0",
     date: "2026-05-04",
     title: "Live progress in Telegram",

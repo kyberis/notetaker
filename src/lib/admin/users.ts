@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import { errors } from "@/lib/http";
+import { log } from "@/lib/log";
 
 export type AdminUserRow = {
   id: string;
@@ -123,6 +125,53 @@ export type AdminMetrics = {
   totalNotes: number;
   remindersPending: number;
 };
+
+/**
+ * Enable or disable a user account. Disabled users:
+ *   - cannot sign in (`authorize` + `signIn` callbacks block them),
+ *   - are kicked out of the dashboard on the next request via `pageRequireAuth`,
+ *   - have their Telegram webhook payloads silently dropped.
+ *
+ * Soft-delete (`deletedAt`) is a stronger, GDPR-aware state and is not changed
+ * here. An admin cannot disable themselves — that's how admins lose recovery
+ * paths to bricked consoles.
+ */
+export async function setUserActive(opts: {
+  actorId: string;
+  targetId: string;
+  isActive: boolean;
+}): Promise<{ id: string; isActive: boolean }> {
+  if (opts.actorId === opts.targetId) {
+    throw errors.badRequest("Admins cannot disable their own account.");
+  }
+
+  const target = await db.user.findUnique({
+    where: { id: opts.targetId },
+    select: { id: true, isActive: true, deletedAt: true },
+  });
+  if (!target) throw errors.notFound("User not found.");
+  if (target.deletedAt) {
+    throw errors.conflict("User is soft-deleted; cannot toggle active state.");
+  }
+
+  if (target.isActive === opts.isActive) {
+    return { id: target.id, isActive: target.isActive };
+  }
+
+  const updated = await db.user.update({
+    where: { id: opts.targetId },
+    data: { isActive: opts.isActive },
+    select: { id: true, isActive: true },
+  });
+
+  log.info("admin_user_active_toggled", {
+    actorId: opts.actorId,
+    targetId: updated.id,
+    isActive: updated.isActive,
+  });
+
+  return updated;
+}
 
 /** Aggregate counters for the admin landing card row. */
 export async function getAdminMetrics(): Promise<AdminMetrics> {

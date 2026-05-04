@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { UserActiveToggle } from "@/components/admin/user-active-toggle";
 import { pageRequireAdmin } from "@/lib/auth/session";
 import { listAdminUsers, type AdminUserRow } from "@/lib/admin/users";
 
@@ -22,7 +23,7 @@ export default async function AdminUsersPage({
 }: {
   searchParams?: Promise<SearchParams>;
 }) {
-  await pageRequireAdmin();
+  const ctx = await pageRequireAdmin();
   const sp = (await searchParams) ?? {};
   const q = (sp.q ?? "").trim().slice(0, 200);
   const telegramOnly = sp.telegram === "1";
@@ -104,13 +105,13 @@ export default async function AdminUsersPage({
           No users match the current filters.
         </div>
       ) : (
-        <UsersTable rows={users} />
+        <UsersTable rows={users} actorId={ctx.user.id} />
       )}
     </div>
   );
 }
 
-function UsersTable({ rows }: { rows: AdminUserRow[] }) {
+function UsersTable({ rows, actorId }: { rows: AdminUserRow[]; actorId: string }) {
   const dt = new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -130,6 +131,7 @@ function UsersTable({ rows }: { rows: AdminUserRow[] }) {
             <th className="px-3 py-2 text-left font-medium">Last seen</th>
             <th className="px-3 py-2 text-left font-medium">Created</th>
             <th className="px-3 py-2 text-left font-medium">Status</th>
+            <th className="px-3 py-2 text-left font-medium">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -203,6 +205,20 @@ function UsersTable({ rows }: { rows: AdminUserRow[] }) {
                   </span>
                 ) : (
                   <span className="text-xs text-emerald-600">active</span>
+                )}
+              </td>
+              <td className="px-3 py-2">
+                {u.deletedAt ? (
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    —
+                  </span>
+                ) : (
+                  <UserActiveToggle
+                    userId={u.id}
+                    email={u.email}
+                    isActive={u.isActive}
+                    isSelf={u.id === actorId}
+                  />
                 )}
               </td>
             </tr>

@@ -114,6 +114,12 @@ export async function POST(req: Request) {
   if (user.deletedAt) {
     return NextResponse.json({ ok: true });
   }
+  // Account disabled by an admin: silently acknowledge so Telegram stops
+  // retrying, but neither save the message nor invoke the agent.
+  if (!user.isActive) {
+    log.info("telegram_message_dropped_disabled_user", { userId: user.id });
+    return NextResponse.json({ ok: true });
+  }
 
   const locale: Locale = isLocale(user.locale) ? user.locale : "en";
   const D = dict(locale);
@@ -235,6 +241,7 @@ type ResolvedUser = {
   locale: string;
   ttsEnabled: boolean;
   deletedAt: Date | null;
+  isActive: boolean;
 };
 
 async function resolveUser(message: TgMessage): Promise<ResolvedUser | null> {
@@ -242,7 +249,13 @@ async function resolveUser(message: TgMessage): Promise<ResolvedUser | null> {
 
   const existing = await db.user.findUnique({
     where: { telegramUserId: tgUserId },
-    select: { id: true, locale: true, ttsEnabled: true, deletedAt: true },
+    select: {
+      id: true,
+      locale: true,
+      ttsEnabled: true,
+      deletedAt: true,
+      isActive: true,
+    },
   });
   if (existing) return existing;
 
@@ -260,6 +273,7 @@ async function resolveUser(message: TgMessage): Promise<ResolvedUser | null> {
       locale: true,
       ttsEnabled: true,
       deletedAt: true,
+      isActive: true,
     },
   });
   if (!candidate) {
@@ -290,6 +304,7 @@ async function resolveUser(message: TgMessage): Promise<ResolvedUser | null> {
     locale: candidate.locale,
     ttsEnabled: candidate.ttsEnabled,
     deletedAt: candidate.deletedAt,
+    isActive: candidate.isActive,
   };
 }
 

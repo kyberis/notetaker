@@ -5,6 +5,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+function humaniseError(error?: string): string | null {
+  if (!error) return null;
+  // NextAuth surfaces opaque codes (CredentialsSignin, OAuthSignin…); we add
+  // our own (`disabled`) when an admin-disabled session is kicked out by
+  // `pageRequireAuth`. Map the ones we care about; show the rest verbatim.
+  switch (error) {
+    case "disabled":
+      return "Your account has been disabled. Please contact support.";
+    case "CredentialsSignin":
+      return "Invalid email or password.";
+    default:
+      return error;
+  }
+}
+
 export function LoginForm({
   showGoogle,
   callbackUrl,
@@ -16,7 +31,7 @@ export function LoginForm({
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [localError, setLocalError] = useState<string | null>(error ?? null);
+  const [localError, setLocalError] = useState<string | null>(humaniseError(error));
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
