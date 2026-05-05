@@ -99,7 +99,10 @@ export const authOptions = {
             type: "oauth" as const,
             wellKnown: `${getIdpBaseUrl()}/.well-known/openid-configuration`,
             authorization: {
-              params: { scope: "openid email profile entitlements" },
+              params: {
+                scope: "openid email profile entitlements",
+                app_hint: "will",
+              },
             },
             clientId: process.env.IDP_CLIENT_ID,
             clientSecret: process.env.IDP_CLIENT_SECRET,
@@ -170,14 +173,6 @@ export const authOptions = {
           select: { id: true, isActive: true },
         });
         if (existing && !existing.isActive) return false;
-        const dailyLimit = Number(p?.entitlements?.will_daily_limit) || 30;
-        await db.user.updateMany({
-          where: { email },
-          data: {
-            dailyAgentMessageLimit: dailyLimit,
-            ...(p?.name ? { name: p.name } : {}),
-          },
-        });
       }
       return true;
     },
@@ -212,6 +207,27 @@ export const authOptions = {
         (session.user as { locale?: string }).locale = String(token.locale ?? "en");
       }
       return session;
+    },
+  },
+  events: {
+    async signIn(message) {
+      const { user, account, profile } = message;
+      if (account?.provider !== "trefolio-id" || !user?.email) return;
+      const p = profile as
+        | {
+            entitlements?: { will_daily_limit?: number };
+            name?: string;
+          }
+        | undefined;
+      const email = user.email.toLowerCase();
+      const dailyLimit = Number(p?.entitlements?.will_daily_limit) || 30;
+      await db.user.updateMany({
+        where: { email },
+        data: {
+          dailyAgentMessageLimit: dailyLimit,
+          ...(p?.name ? { name: p.name } : {}),
+        },
+      });
     },
   },
 } as NextAuthOptions;

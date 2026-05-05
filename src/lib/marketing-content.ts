@@ -214,6 +214,15 @@ export const LANDING_COPY = {
  */
 export const CHANGELOG = [
   {
+    version: "0.7.0",
+    date: "2026-05-05",
+    title: "Unified sign-in at user.trefolio.com",
+    highlights: [
+      "When unified accounts are enabled (USE_LEGACY_AUTH=false), /login and /register send you straight to the shared IdP — same email and plan as trefolio and Clara.",
+      "On Vercel production, the app ignores a mistaken IDP_BASE_URL pointing at localhost and uses https://user.trefolio.com instead.",
+    ],
+  },
+  {
     version: "0.6.0",
     date: "2026-05-04",
     title: "Admin can disable accounts",
