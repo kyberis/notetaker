@@ -13,9 +13,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3200",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3200",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
@@ -27,6 +27,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:sync": "prisma db push",
     "prisma:studio": "prisma studio",
+    "idp:migrate-users": "node scripts/migrate-users-to-idp.mjs",
     "telegram:webhook": "node scripts/register-telegram-webhook.mjs"
   },
   "dependencies": {

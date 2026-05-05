@@ -4,6 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 
 import { db } from "@/lib/db";
+import { getIdpBaseUrl } from "@/lib/idp-base";
 import { log } from "@/lib/log";
 
 import { verifyPassword } from "./password";
@@ -27,7 +28,9 @@ function isAdminEmail(email: string | null | undefined): boolean {
   return ADMIN_EMAILS.has(email.toLowerCase());
 }
 
-export const authOptions: NextAuthOptions = {
+export const authOptions = {
+  // Behind Caddy/Vercel, use X-Forwarded-Host so OAuth redirect_uri matches the browser URL.
+  trustHost: true,
   adapter: PrismaAdapter(db),
   session: { strategy: "jwt" },
   pages: {
@@ -86,6 +89,39 @@ export const authOptions: NextAuthOptions = {
           }),
         ]
       : []),
+    ...(getIdpBaseUrl() &&
+    process.env.IDP_CLIENT_ID &&
+    process.env.IDP_CLIENT_SECRET
+      ? [
+          {
+            id: "trefolio-id",
+            name: "Trefolio Account",
+            type: "oauth" as const,
+            wellKnown: `${getIdpBaseUrl()}/.well-known/openid-configuration`,
+            authorization: {
+              params: { scope: "openid email profile entitlements" },
+            },
+            clientId: process.env.IDP_CLIENT_ID,
+            clientSecret: process.env.IDP_CLIENT_SECRET,
+            idToken: true,
+            checks: ["pkce", "state"] as Array<"pkce" | "state">,
+            profile(profile: Record<string, unknown>) {
+              const email =
+                typeof profile.email === "string"
+                  ? profile.email.toLowerCase()
+                  : "";
+              return {
+                id:
+                  typeof profile.sub === "string" ? profile.sub : email,
+                name:
+                  typeof profile.name === "string" ? profile.name : null,
+                email,
+                image: null,
+              };
+            },
+          },
+        ]
+      : []),
   ],
   callbacks: {
     signIn: async ({ user, account, profile }) => {
@@ -119,11 +155,43 @@ export const authOptions: NextAuthOptions = {
           log.info("admin_promoted_via_env", { userId: existing.id });
         }
       }
+      if (account?.provider === "trefolio-id") {
+        const p = profile as
+          | {
+              email?: string;
+              name?: string;
+              entitlements?: { will_daily_limit?: number };
+            }
+          | undefined;
+        const email = p?.email?.toLowerCase() ?? user.email?.toLowerCase();
+        if (!email) return false;
+        const existing = await db.user.findUnique({
+          where: { email },
+          select: { id: true, isActive: true },
+        });
+        if (existing && !existing.isActive) return false;
+        const dailyLimit = Number(p?.entitlements?.will_daily_limit) || 30;
+        await db.user.updateMany({
+          where: { email },
+          data: {
+            dailyAgentMessageLimit: dailyLimit,
+            ...(p?.name ? { name: p.name } : {}),
+          },
+        });
+      }
       return true;
     },
     jwt: async ({ token, user, trigger }) => {
       if (user) {
-        token.uid = user.id as string;
+        let uid = user.id as string | undefined;
+        if (!uid && user.email) {
+          const row = await db.user.findUnique({
+            where: { email: user.email.toLowerCase() },
+            select: { id: true },
+          });
+          uid = row?.id;
+        }
+        if (uid) token.uid = uid;
       }
       if (trigger === "update" || (!token.locale && token.uid)) {
         const fresh = await db.user.findUnique({
@@ -146,4 +214,4 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-};
+} as NextAuthOptions;

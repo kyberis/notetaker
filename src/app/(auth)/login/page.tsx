@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
 import { LoginForm } from "@/components/auth/login-form";
+import IdpAutoRedirect from "@/components/auth/idp-auto-redirect";
+import { getIdpBaseUrl } from "@/lib/idp-base";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -10,8 +12,20 @@ type SearchParams = Promise<{
   error?: string;
 }>;
 
+function shouldRedirectToIdp() {
+  const idpEnabled =
+    Boolean(getIdpBaseUrl()) &&
+    Boolean(process.env.IDP_CLIENT_ID) &&
+    Boolean(process.env.IDP_CLIENT_SECRET);
+  const legacyOff = process.env.USE_LEGACY_AUTH === "false";
+  return idpEnabled && legacyOff;
+}
+
 export default async function LoginPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
+  if (shouldRedirectToIdp() && !params.error) {
+    return <IdpAutoRedirect callbackUrl={params.callbackUrl} />;
+  }
   const useGoogle =
     Boolean(process.env.GOOGLE_CLIENT_ID) && Boolean(process.env.GOOGLE_CLIENT_SECRET);
   return (
