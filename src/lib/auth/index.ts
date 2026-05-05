@@ -92,11 +92,18 @@ export const authOptions = {
     ...(getIdpBaseUrl() &&
     process.env.IDP_CLIENT_ID &&
     process.env.IDP_CLIENT_SECRET
-      ? [
+        ? [
           {
             id: "trefolio-id",
             name: "Trefolio Account",
             type: "oauth" as const,
+            /**
+             * Required when the user already has a Will row (e.g. legacy Google
+             * or email/password) and signs in through user.trefolio.com for the
+             * first time — NextAuth must link `trefolio-id` to that user by
+             * email instead of throwing AccountNotLinkedError.
+             */
+            allowDangerousEmailAccountLinking: true,
             wellKnown: `${getIdpBaseUrl()}/.well-known/openid-configuration`,
             authorization: {
               params: {
@@ -186,11 +193,15 @@ export const authOptions = {
           });
           uid = row?.id;
         }
-        if (uid) token.uid = uid;
+        if (uid) {
+          token.uid = uid;
+          token.sub = uid;
+        }
       }
-      if (trigger === "update" || (!token.locale && token.uid)) {
+      if (trigger === "update" || (!token.locale && (token.uid ?? token.sub))) {
+        const rowId = String(token.uid ?? token.sub ?? "");
         const fresh = await db.user.findUnique({
-          where: { id: String(token.uid) },
+          where: { id: rowId },
           select: { isAdmin: true, locale: true },
         });
         if (fresh) {
@@ -201,8 +212,9 @@ export const authOptions = {
       return token;
     },
     session: async ({ session, token }) => {
-      if (session.user && token.uid) {
-        (session.user as { id?: string }).id = String(token.uid);
+      const id = token.uid ?? token.sub;
+      if (session.user && id) {
+        (session.user as { id?: string }).id = String(id);
         (session.user as { isAdmin?: boolean }).isAdmin = Boolean(token.isAdmin);
         (session.user as { locale?: string }).locale = String(token.locale ?? "en");
       }

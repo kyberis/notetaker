@@ -214,6 +214,14 @@ export const LANDING_COPY = {
  */
 export const CHANGELOG = [
   {
+    version: "0.7.2",
+    date: "2026-05-05",
+    title: "IdP sign-in links to your existing Will account",
+    highlights: [
+      "If you already had a Will account (email, Google, or passkey) and you sign in with the shared trefolio account the first time, we now attach that login to the same user instead of leaving you on the sign-in page with no session.",
+    ],
+  },
+  {
     version: "0.7.1",
     date: "2026-05-05",
     title: "Login always uses the shared IdP on Vercel",
