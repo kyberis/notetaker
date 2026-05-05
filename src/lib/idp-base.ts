@@ -36,3 +36,20 @@ export function getIdpBaseUrl(): string {
   if (process.env.NODE_ENV === "production") return PROD_IDP_BASE_URL;
   return "";
 }
+
+/**
+ * Whether `/login` and `/register` should send users to the unified IdP
+ * (`user.trefolio.com`) via NextAuth `trefolio-id`.
+ *
+ * Requires full OAuth client config. **Unified IdP is the default** whenever
+ * those vars are set; set **`USE_LEGACY_AUTH=true`** explicitly to keep the
+ * local email/password (+ optional Google) forms (rollback / self-host).
+ */
+export function shouldSendUsersToUnifiedIdp(): boolean {
+  const configured =
+    Boolean(getIdpBaseUrl()) &&
+    Boolean(process.env.IDP_CLIENT_ID?.trim()) &&
+    Boolean(process.env.IDP_CLIENT_SECRET?.trim());
+  if (!configured) return false;
+  return process.env.USE_LEGACY_AUTH !== "true";
+}

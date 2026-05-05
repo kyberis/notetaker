@@ -2,20 +2,11 @@ import type { Metadata } from "next";
 
 import { RegisterForm } from "@/components/auth/register-form";
 import IdpSignupRedirect from "@/components/auth/idp-signup-redirect";
-import { getIdpBaseUrl } from "@/lib/idp-base";
+import { shouldSendUsersToUnifiedIdp } from "@/lib/idp-base";
 
 export const metadata: Metadata = { title: "Create account" };
 
 type SearchParams = Promise<{ callbackUrl?: string }>;
-
-function shouldRedirectRegisterToIdp() {
-  const idpEnabled =
-    Boolean(getIdpBaseUrl()) &&
-    Boolean(process.env.IDP_CLIENT_ID) &&
-    Boolean(process.env.IDP_CLIENT_SECRET);
-  const legacyOff = process.env.USE_LEGACY_AUTH === "false";
-  return idpEnabled && legacyOff;
-}
 
 export default async function RegisterPage({
   searchParams,
@@ -23,7 +14,7 @@ export default async function RegisterPage({
   searchParams: SearchParams;
 }) {
   const params = await searchParams;
-  if (shouldRedirectRegisterToIdp()) {
+  if (shouldSendUsersToUnifiedIdp()) {
     return <IdpSignupRedirect callbackUrl={params.callbackUrl} />;
   }
 
