@@ -12,8 +12,13 @@
  */
 const PROD_IDP_BASE_URL = "https://user.trefolio.com";
 
+/** True only on a real Vercel production deployment — not `next dev` with stray `VERCEL=*` from `vercel env pull`. */
 function isVercelProduction(): boolean {
-  return process.env.VERCEL === "1" && process.env.VERCEL_ENV === "production";
+  return (
+    process.env.VERCEL === "1" &&
+    process.env.VERCEL_ENV === "production" &&
+    process.env.NODE_ENV === "production"
+  );
 }
 
 export function getIdpBaseUrl(): string {
