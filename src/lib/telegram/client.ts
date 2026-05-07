@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 
+import { db } from "@/lib/db";
 import { log } from "@/lib/log";
-
 import { chunkForTelegram } from "./format";
 
 const API_BASE = "https://api.telegram.org";
@@ -25,7 +25,26 @@ type SendMessageOptions = {
   replyToMessageId?: number;
   inlineKeyboard?: InlineKeyboardButton[][];
   disableWebPagePreview?: boolean;
+  /** When set, increment this user's delivery counters (best-effort, fire-and-forget). */
+  telemetryUserId?: string;
 };
+
+async function recordTelegramDeliveryTelemetry(
+  userId: string,
+  ok: boolean,
+): Promise<void> {
+  try {
+    await db.user.update({
+      where: { id: userId },
+      data: {
+        telegramDeliveryAttempts: { increment: 1 },
+        ...(ok ? {} : { telegramDeliveryFailures: { increment: 1 } }),
+      },
+    });
+  } catch {
+    // user missing / race — ignore
+  }
+}
 
 /**
  * Send a Telegram message. Long bodies are split into ≤4000-char chunks so
@@ -37,6 +56,9 @@ export async function sendTelegramMessage(opts: SendMessageOptions): Promise<{ o
   try {
     token = getToken();
   } catch {
+    if (opts.telemetryUserId) {
+      void recordTelegramDeliveryTelemetry(opts.telemetryUserId, false);
+    }
     return { ok: false };
   }
 
@@ -64,12 +86,21 @@ export async function sendTelegramMessage(opts: SendMessageOptions): Promise<{ o
       if (!res.ok) {
         const text = await res.text();
         log.warn("telegram_send_failed", { status: res.status, body: text.slice(0, 200) });
+        if (opts.telemetryUserId) {
+          void recordTelegramDeliveryTelemetry(opts.telemetryUserId, false);
+        }
         return { ok: false };
       }
     } catch (err) {
       log.warn("telegram_send_threw", { error: err instanceof Error ? err.message : String(err) });
+      if (opts.telemetryUserId) {
+        void recordTelegramDeliveryTelemetry(opts.telemetryUserId, false);
+      }
       return { ok: false };
     }
+  }
+  if (opts.telemetryUserId) {
+    void recordTelegramDeliveryTelemetry(opts.telemetryUserId, true);
   }
   return { ok: true };
 }

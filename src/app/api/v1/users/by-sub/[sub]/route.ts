@@ -51,6 +51,8 @@ export async function GET(
       createdAt: true,
       emailVerified: true,
       telegramUserId: true,
+      telegramDeliveryAttempts: true,
+      telegramDeliveryFailures: true,
     },
   });
   if (!user) return NextResponse.json({ exists: false, sub }, { status: 200 });
@@ -65,8 +67,10 @@ export async function GET(
     isActive: user.isActive,
     locale: user.locale,
     dailyAgentMessageLimit: user.dailyAgentMessageLimit,
-    telegramLinked: Boolean(user.telegramUserId),
-    createdAt: user.createdAt.toISOString(),
+      telegramLinked: Boolean(user.telegramUserId),
+      telegramDeliveryAttempts: user.telegramDeliveryAttempts,
+      telegramDeliveryFailures: user.telegramDeliveryFailures,
+      createdAt: user.createdAt.toISOString(),
     emailVerified: Boolean(user.emailVerified),
   });
 }

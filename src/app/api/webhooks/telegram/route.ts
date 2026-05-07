@@ -135,22 +135,31 @@ export async function POST(req: Request) {
     await sendTelegramMessage({
       chatId: message.chat.id,
       text: quotaText,
+      telemetryUserId: user.id,
     });
     return NextResponse.json({ ok: true });
   }
 
   // 6) Materialise the user's content into plain text + the right source.
   await sendChatAction(message.chat.id, "typing");
-  const materialised = await materialise(message, locale);
+  const materialised = await materialise(message, locale, user.id);
   if (!materialised) {
-    await sendTelegramMessage({ chatId: message.chat.id, text: D.bot.error });
+    await sendTelegramMessage({
+      chatId: message.chat.id,
+      text: D.bot.error,
+      telemetryUserId: user.id,
+    });
     return NextResponse.json({ ok: true });
   }
 
   // /start <code> is consumed by resolveUser above, so by this point
   // the user is linked. Echo welcome on the very first message.
   if (materialised.text.startsWith("/start")) {
-    await sendTelegramMessage({ chatId: message.chat.id, text: D.bot.linked });
+    await sendTelegramMessage({
+      chatId: message.chat.id,
+      text: D.bot.linked,
+      telemetryUserId: user.id,
+    });
     return NextResponse.json({ ok: true });
   }
 
@@ -203,7 +212,11 @@ export async function POST(req: Request) {
         messageId: status.messageId,
       });
     }
-    await sendTelegramMessage({ chatId: message.chat.id, text: D.bot.error });
+    await sendTelegramMessage({
+      chatId: message.chat.id,
+      text: D.bot.error,
+      telemetryUserId: user.id,
+    });
     return NextResponse.json({ ok: true });
   }
 
@@ -222,7 +235,11 @@ export async function POST(req: Request) {
   // properly instead of leaking asterisks). Optional TTS audio uses the
   // raw text — TTS providers shouldn't read the markup aloud.
   const safeReply = formatAgentMarkdownForTelegramHtml(reply.text);
-  await sendTelegramMessage({ chatId: message.chat.id, text: safeReply });
+  await sendTelegramMessage({
+    chatId: message.chat.id,
+    text: safeReply,
+    telemetryUserId: user.id,
+  });
 
   if (user.ttsEnabled) {
     try {
@@ -316,6 +333,7 @@ async function resolveUser(message: TgMessage): Promise<ResolvedUser | null> {
 async function materialise(
   message: TgMessage,
   locale: Locale,
+  telemetryUserId: string,
 ): Promise<{ text: string; source: "TELEGRAM_TEXT" | "TELEGRAM_VOICE" | "TELEGRAM_PHOTO" | "TELEGRAM_PDF" } | null> {
   const D = dict(locale);
 
@@ -325,7 +343,11 @@ async function materialise(
 
   if (message.voice) {
     if (message.voice.duration > MAX_VOICE_SECONDS) {
-      await sendTelegramMessage({ chatId: message.chat.id, text: D.bot.voiceTooLong });
+      await sendTelegramMessage({
+        chatId: message.chat.id,
+        text: D.bot.voiceTooLong,
+        telemetryUserId,
+      });
       return null;
     }
     const url = await getTelegramFileUrl(message.voice.file_id);
@@ -349,7 +371,11 @@ async function materialise(
     if (!buf) return null;
     const text = await extractFromImage({ buffer: buf, mimeType: "image/jpeg" });
     if (!text) {
-      await sendTelegramMessage({ chatId: message.chat.id, text: D.bot.photoFailed });
+      await sendTelegramMessage({
+        chatId: message.chat.id,
+        text: D.bot.photoFailed,
+        telemetryUserId,
+      });
       return null;
     }
     return {
@@ -365,7 +391,11 @@ async function materialise(
     if (!buf) return null;
     const text = await extractFromPdf(buf);
     if (!text) {
-      await sendTelegramMessage({ chatId: message.chat.id, text: D.bot.pdfFailed });
+      await sendTelegramMessage({
+        chatId: message.chat.id,
+        text: D.bot.pdfFailed,
+        telemetryUserId,
+      });
       return null;
     }
     return {

@@ -82,6 +82,10 @@ model User {
   /// rows whose `deletedAt < now() - 30 days`. A user can restore by
   /// signing back in within the grace window.
   deletedAt                DateTime?
+  /// Outbound Telegram `sendMessage` attempts attributed to this user (best-effort).
+  telegramDeliveryAttempts Int                  @default(0)
+  /// Subset of attempts where Telegram or transport reported failure.
+  telegramDeliveryFailures Int                  @default(0)
   /// Bitmask of soft-delete reminder emails sent (bit 0 = T-7, bit 1 = T-1).
   /// Cleared when `deletedAt` is reset.
   deletionRemindersSent    Int                 @default(0)

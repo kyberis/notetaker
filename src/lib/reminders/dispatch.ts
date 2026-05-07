@@ -68,6 +68,7 @@ export async function dispatchDueReminders(now: Date = new Date()): Promise<{
       const result = await sendTelegramMessage({
         chatId: reminder.user.telegramChatId,
         text: safe,
+        telemetryUserId: reminder.user.id,
       });
       ok = result.ok;
     }
