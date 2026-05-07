@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { type ModelMessage } from "ai";
 
 import { consumeAgentQuota, recordAgentTokens } from "@/lib/agent-quota";
+import { buildIdpUpgradeUrlForWill, shouldSendUsersToUnifiedIdp } from "@/lib/idp-base";
 import { extractFromImage, extractFromPdf } from "@/lib/ai/extract";
 import { runNoteAgent } from "@/lib/ai/run-note-agent";
 import { textToSpeech } from "@/lib/ai/text-to-speech";
@@ -127,9 +128,13 @@ export async function POST(req: Request) {
   // 5) Quota check.
   const quota = await consumeAgentQuota(user.id);
   if (!quota.ok) {
+    let quotaText = D.bot.quotaExceeded(quota.limit);
+    if (shouldSendUsersToUnifiedIdp()) {
+      quotaText += `\n\n👉 ${buildIdpUpgradeUrlForWill(null)}`;
+    }
     await sendTelegramMessage({
       chatId: message.chat.id,
-      text: D.bot.quotaExceeded(quota.limit),
+      text: quotaText,
     });
     return NextResponse.json({ ok: true });
   }

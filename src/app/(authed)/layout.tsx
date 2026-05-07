@@ -5,6 +5,7 @@ import { pageRequireAuth } from "@/lib/auth/session";
 import { APP_NAME } from "@/lib/marketing-content";
 
 import { SignOutButton } from "@/components/auth/signout-button";
+import { AgentQuotaBadge } from "@/components/agent-quota-badge";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { needsTerms, user } = await pageRequireAuth();
@@ -25,6 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 Admin
               </Link>
             ) : null}
+            <AgentQuotaBadge />
             <span className="text-xs">{user.email}</span>
             <SignOutButton />
           </nav>

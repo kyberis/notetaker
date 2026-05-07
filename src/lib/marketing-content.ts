@@ -214,6 +214,14 @@ export const LANDING_COPY = {
  */
 export const CHANGELOG = [
   {
+    version: "0.7.3",
+    date: "2026-05-07",
+    title: "Daily assistant quota in the web header",
+    highlights: [
+      "The signed-in header now shows how many of your daily Will (Telegram) assistant messages you've used — same counter as the bot, with a Pro pill when your plan raises the cap to 200.",
+    ],
+  },
+  {
     version: "0.7.2",
     date: "2026-05-05",
     title: "IdP sign-in links to your existing Will account",

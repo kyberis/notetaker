@@ -58,3 +58,18 @@ export function shouldSendUsersToUnifiedIdp(): boolean {
   if (!configured) return false;
   return process.env.USE_LEGACY_AUTH !== "true";
 }
+
+/**
+ * Public upgrade URL on the IdP (Trefolio Pro). Pass IdP `sub` when the User row stores it.
+ */
+export function buildIdpUpgradeUrlForWill(
+  idpSub: string | null | undefined,
+  opts?: { interval?: "monthly" | "annual" },
+): string {
+  const base = getIdpBaseUrl();
+  const u = new URL(`${base}/upgrade`);
+  u.searchParams.set("from", "will");
+  if (idpSub) u.searchParams.set("sub", idpSub);
+  if (opts?.interval) u.searchParams.set("interval", opts.interval);
+  return u.toString();
+}
