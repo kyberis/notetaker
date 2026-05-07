@@ -49,6 +49,12 @@ the agent the user's **most recent 6 notes as a system summary** (no
 prior agent replies are persisted in v1). See `loadHistory` in the
 Telegram webhook.
 
+System prompts in [`src/lib/ai/prompts/`](../../src/lib/ai/prompts) state
+that user text and stored note bodies are **untrusted**: instructions
+embedded in saved notes must not be followed unless the user's current
+message explicitly requests that action this turn (prompt-injection
+mitigation).
+
 ## Contracts
 
 ### Inputs
