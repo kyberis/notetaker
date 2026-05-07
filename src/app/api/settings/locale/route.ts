@@ -4,7 +4,8 @@ import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { errors, withApi } from "@/lib/http";
-import { isLocale } from "@/lib/i18n/locale";
+import { isLocale, type Locale } from "@/lib/i18n/locale";
+import { setTrefolioUiLocaleCookieOnResponse } from "@/lib/i18n/trefolio-ecosystem-locale-cookie";
 
 const Schema = z.object({ locale: z.string().min(2).max(5) });
 
@@ -17,6 +18,8 @@ export async function POST(req: Request) {
       where: { id: session.user.id },
       data: { locale: body.locale },
     });
-    return NextResponse.json({ ok: true, locale: body.locale });
+    const res = NextResponse.json({ ok: true, locale: body.locale });
+    setTrefolioUiLocaleCookieOnResponse(req, res, body.locale as Locale);
+    return res;
   });
 }
