@@ -214,6 +214,14 @@ export const LANDING_COPY = {
  */
 export const CHANGELOG = [
   {
+    version: "0.7.4",
+    date: "2026-05-08",
+    title: "IdP upgrade links respect IDP_ISSUER",
+    highlights: [
+      "Upgrade deep-links to user.trefolio.com now prefer the public `IDP_ISSUER` host when set, so browsers are not sent through a loopback `IDP_BASE_URL` in dev stacks that split API vs issuer.",
+    ],
+  },
+  {
     version: "0.7.3",
     date: "2026-05-07",
     title: "Daily assistant quota in the web header",

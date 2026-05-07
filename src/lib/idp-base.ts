@@ -60,13 +60,22 @@ export function shouldSendUsersToUnifiedIdp(): boolean {
 }
 
 /**
+ * Browser-facing IdP origin for outbound links. Prefer `IDP_ISSUER` when set.
+ */
+export function getIdpBrowserOrigin(): string {
+  const iss = process.env.IDP_ISSUER?.trim().replace(/\/+$/g, "");
+  if (iss) return iss;
+  return getIdpBaseUrl();
+}
+
+/**
  * Public upgrade URL on the IdP (Trefolio Pro). Pass IdP `sub` when the User row stores it.
  */
 export function buildIdpUpgradeUrlForWill(
   idpSub: string | null | undefined,
   opts?: { interval?: "monthly" | "annual" },
 ): string {
-  const base = getIdpBaseUrl();
+  const base = getIdpBrowserOrigin() || getIdpBaseUrl();
   const u = new URL(`${base}/upgrade`);
   u.searchParams.set("from", "will");
   if (idpSub) u.searchParams.set("sub", idpSub);
