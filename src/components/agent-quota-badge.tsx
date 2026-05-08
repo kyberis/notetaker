@@ -28,7 +28,9 @@ export function AgentQuotaBadge() {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    queueMicrotask(() => {
+      void refresh();
+    });
   }, [refresh]);
 
   useEffect(() => {

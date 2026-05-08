@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * Seed (or refresh) the unified-flow demo user in Will's Postgres database.
  *
