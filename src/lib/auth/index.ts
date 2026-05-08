@@ -47,7 +47,13 @@ export const authOptions = {
         password: { label: "Password", type: "password" },
       },
       authorize: async (credentials) => {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.email || !credentials?.password) {
+          log.info("will.credentials_signin_missing_fields", {
+            hasEmail: Boolean(credentials?.email),
+            hasPassword: Boolean(credentials?.password),
+          });
+          return null;
+        }
         const user = await db.user.findUnique({
           where: { email: credentials.email.toLowerCase() },
           select: {
@@ -61,8 +67,22 @@ export const authOptions = {
             deletedAt: true,
           },
         });
-        if (!user || !user.passwordHash) return null;
-        if (!user.isActive) return null;
+        if (!user || !user.passwordHash) {
+          log.info("will.credentials_signin_unknown_or_no_password", {
+            emailDomainHint: credentials.email.includes("@")
+              ? credentials.email.slice(credentials.email.indexOf("@") + 1).toLowerCase()
+              : undefined,
+          });
+          return null;
+        }
+        if (!user.isActive) {
+          log.info("will.credentials_signin_inactive_user", {
+            emailDomainHint: credentials.email.includes("@")
+              ? credentials.email.slice(credentials.email.indexOf("@") + 1).toLowerCase()
+              : undefined,
+          });
+          return null;
+        }
         if (user.deletedAt) {
           // Soft-deleted account: signing in should restore it.
           await db.user.update({
@@ -71,7 +91,20 @@ export const authOptions = {
           });
         }
         const ok = await verifyPassword(credentials.password, user.passwordHash);
-        if (!ok) return null;
+        if (!ok) {
+          log.info("will.credentials_signin_bad_password", {
+            emailDomainHint: credentials.email.includes("@")
+              ? credentials.email.slice(credentials.email.indexOf("@") + 1).toLowerCase()
+              : undefined,
+          });
+          return null;
+        }
+        log.info("will.credentials_signin_ok", {
+          emailDomainHint: user.email.includes("@")
+            ? user.email.slice(user.email.indexOf("@") + 1).toLowerCase()
+            : undefined,
+          userIdTail: user.id.length > 10 ? `…${user.id.slice(-8)}` : "***",
+        });
         return {
           id: user.id,
           email: user.email,
@@ -139,7 +172,11 @@ export const authOptions = {
       if (account?.provider === "google") {
         const verified = (profile as { email_verified?: boolean } | undefined)?.email_verified;
         if (verified !== true) {
-          log.warn("google_signin_unverified_email_blocked", { email: user.email });
+          log.warn("google_signin_unverified_email_blocked", {
+            emailDomain: user.email?.includes("@")
+              ? user.email.slice(user.email.indexOf("@") + 1).toLowerCase()
+              : undefined,
+          });
           return false;
         }
       }
@@ -148,7 +185,15 @@ export const authOptions = {
           where: { email: user.email.toLowerCase() },
           select: { id: true, isActive: true, deletedAt: true, isAdmin: true },
         });
-        if (existing && !existing.isActive) return false;
+        if (existing && !existing.isActive) {
+          log.info("will.signin_blocked_inactive_user_lookup", {
+            provider: account?.provider,
+            emailDomainHint: user.email.includes("@")
+              ? user.email.slice(user.email.indexOf("@") + 1).toLowerCase()
+              : undefined,
+          });
+          return false;
+        }
         if (existing?.deletedAt) {
           await db.user.update({
             where: { id: existing.id },
@@ -174,12 +219,26 @@ export const authOptions = {
             }
           | undefined;
         const email = p?.email?.toLowerCase() ?? user.email?.toLowerCase();
-        if (!email) return false;
+        log.info("will.idp_oauth_signin_attempt", {
+          emailDomainHint: email?.includes("@") ? email.slice(email.indexOf("@") + 1) : undefined,
+        });
+        if (!email) {
+          log.info("will.idp_oauth_signin_blocked_no_email", {});
+          return false;
+        }
         const existing = await db.user.findUnique({
           where: { email },
           select: { id: true, isActive: true },
         });
-        if (existing && !existing.isActive) return false;
+        if (existing && !existing.isActive) {
+          log.info("will.idp_oauth_signin_blocked_inactive_user", {
+            emailDomainHint: email.includes("@") ? email.slice(email.indexOf("@") + 1) : undefined,
+          });
+          return false;
+        }
+        log.info("will.idp_oauth_signin_allowed", {
+          emailDomainHint: email.includes("@") ? email.slice(email.indexOf("@") + 1) : undefined,
+        });
       }
       return true;
     },
