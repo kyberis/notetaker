@@ -4,7 +4,8 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 
 import { db } from "@/lib/db";
-import { getIdpBaseUrl } from "@/lib/idp-base";
+import { getIdpBaseUrl, shouldSendUsersToUnifiedIdp } from "@/lib/idp-base";
+import { syncEntitlementsFromIdpForUser } from "@/lib/idp/sync-entitlements";
 import { log } from "@/lib/log";
 
 import { verifyPassword } from "./password";
@@ -267,6 +268,20 @@ export const authOptions = {
           token.isAdmin = fresh.isAdmin;
           token.locale = fresh.locale;
         }
+      }
+
+      const ENT_SYNC_MS = 60_000;
+      const syncTok = token as { idpEntitlementSyncAt?: number };
+      const now = Date.now();
+      const uid = String(token.uid ?? token.sub ?? "");
+      if (
+        shouldSendUsersToUnifiedIdp() &&
+        uid &&
+        (!syncTok.idpEntitlementSyncAt ||
+          now - syncTok.idpEntitlementSyncAt > ENT_SYNC_MS)
+      ) {
+        syncTok.idpEntitlementSyncAt = now;
+        void syncEntitlementsFromIdpForUser(uid).catch(() => {});
       }
       return token;
     },

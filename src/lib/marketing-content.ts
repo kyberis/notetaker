@@ -214,6 +214,23 @@ export const LANDING_COPY = {
  */
 export const CHANGELOG = [
   {
+    version: "0.7.7",
+    date: "2026-05-09",
+    title: "IdP quota sync and unified-upgrade cleanup",
+    highlights: [
+      "Daily assistant quota now periodically pulls `will_daily_limit` from user.trefolio.com after login so cancel-at-period-end doesn’t leave you on the wrong cap until re-auth.",
+      "Removed the redundant `/api/billing/unified-upgrade` shim — links point straight at the IdP `/upgrade` flow.",
+    ],
+  },
+  {
+    version: "0.7.6",
+    date: "2026-05-09",
+    title: "Link Telegram from the notes home",
+    highlights: [
+      "When your account isn't linked yet and the bot is configured, /app shows a clear Link Telegram card with the same generate-link flow as settings — no dig through menus first.",
+    ],
+  },
+  {
     version: "0.7.5",
     date: "2026-05-09",
     title: "CSV documents in Telegram",

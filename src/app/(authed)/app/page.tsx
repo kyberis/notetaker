@@ -1,10 +1,9 @@
-import Link from "next/link";
-
 import { pageRequireAuth } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { isLocale, type Locale } from "@/lib/i18n/locale";
 import { bucketByDay } from "@/lib/notes/day-bucket";
 
+import { TelegramLinkPrompt } from "@/components/home/telegram-link-prompt";
 import { EditableNoteCard } from "@/components/notes/editable-note-card";
 import { NoteComposer } from "@/components/notes/note-composer";
 
@@ -12,6 +11,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NotesPage() {
   const { user, locale } = await pageRequireAuth();
+  const botUsername = process.env.TELEGRAM_BOT_USERNAME ?? null;
 
   const tgUser = await db.user.findUnique({
     where: { id: user.id },
@@ -33,17 +33,7 @@ export default async function NotesPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {!tgUser?.telegramVerifiedAt ? (
-        <div className="rounded-lg border bg-secondary/50 p-4">
-          <p className="text-sm">
-            Connect Telegram to capture by chat, voice, photo, or PDF.
-            <Link href="/settings/telegram" className="ml-1 underline">
-              Open settings
-            </Link>
-            . You can also write notes here from the web.
-          </p>
-        </div>
-      ) : null}
+      {botUsername && !tgUser?.telegramVerifiedAt ? <TelegramLinkPrompt /> : null}
 
       <NoteComposer />
 
