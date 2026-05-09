@@ -384,24 +384,65 @@ async function materialise(
     };
   }
 
-  if (message.document?.mime_type === "application/pdf") {
-    const url = await getTelegramFileUrl(message.document.file_id);
-    if (!url) return null;
-    const buf = await downloadTelegramFile(url);
-    if (!buf) return null;
-    const text = await extractFromPdf(buf);
-    if (!text) {
-      await sendTelegramMessage({
-        chatId: message.chat.id,
-        text: D.bot.pdfFailed,
-        telemetryUserId,
-      });
-      return null;
+  if (message.document) {
+    const doc = message.document;
+    const mime = (doc.mime_type || "").toLowerCase();
+    const fname = (doc.file_name || "").toLowerCase();
+    const looksCsv =
+      mime === "text/csv" ||
+      mime === "application/csv" ||
+      mime === "application/vnd.ms-excel" ||
+      (mime === "text/plain" && fname.endsWith(".csv")) ||
+      fname.endsWith(".csv");
+
+    if (looksCsv) {
+      const maxBytes = 12 * 1024 * 1024;
+      if (doc.file_size && doc.file_size > maxBytes) {
+        await sendTelegramMessage({
+          chatId: message.chat.id,
+          text: D.bot.pdfFailed,
+          telemetryUserId,
+        });
+        return null;
+      }
+      const url = await getTelegramFileUrl(doc.file_id);
+      if (!url) return null;
+      const buf = await downloadTelegramFile(url);
+      if (!buf) return null;
+      const cap = 15000;
+      let raw = buf.toString("utf8");
+      const truncated = raw.length > cap;
+      if (truncated) raw = raw.slice(0, cap);
+      const body =
+        "```csv\n" +
+        raw +
+        "\n```" +
+        (truncated ? `\n\n(${cap.toLocaleString()} character limit)` : "");
+      return {
+        text: message.caption ? `${message.caption}\n\n${body}` : body,
+        source: "TELEGRAM_TEXT",
+      };
     }
-    return {
-      text: message.caption ? `${text}\n\n(${message.caption})` : text,
-      source: "TELEGRAM_PDF",
-    };
+
+    if (mime === "application/pdf" || mime === "application/x-pdf" || fname.endsWith(".pdf")) {
+      const url = await getTelegramFileUrl(doc.file_id);
+      if (!url) return null;
+      const buf = await downloadTelegramFile(url);
+      if (!buf) return null;
+      const text = await extractFromPdf(buf);
+      if (!text) {
+        await sendTelegramMessage({
+          chatId: message.chat.id,
+          text: D.bot.pdfFailed,
+          telemetryUserId,
+        });
+        return null;
+      }
+      return {
+        text: message.caption ? `${text}\n\n(${message.caption})` : text,
+        source: "TELEGRAM_PDF",
+      };
+    }
   }
 
   return null;

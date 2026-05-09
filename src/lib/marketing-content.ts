@@ -214,6 +214,15 @@ export const LANDING_COPY = {
  */
 export const CHANGELOG = [
   {
+    version: "0.7.5",
+    date: "2026-05-09",
+    title: "CSV documents in Telegram",
+    highlights: [
+      "Send a .csv file as a Telegram document and Will inlines the rows (up to 15k characters) into your note.",
+      "The assistant prefers replying in the language of your latest message, using your saved locale as fallback.",
+    ],
+  },
+  {
     version: "0.7.4",
     date: "2026-05-08",
     title: "IdP upgrade links respect IDP_ISSUER",
