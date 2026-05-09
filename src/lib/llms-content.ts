@@ -36,7 +36,8 @@ ${APP_DESCRIPTION}
 ## Resources
 
 - [GitHub (kyberis/notetaker)](${SOURCE_URL}): source code, MIT.
-- [trefolio.com](${TEAM_URL}): the team behind Will.
+- [trefolio](${TEAM_URL}): European multi-currency portfolio tracker (same team).
+- [Clara](https://clara.trefolio.com): open-source AI personal finance assistant with MCP (same team).
 
 ## Optional
 
@@ -102,6 +103,11 @@ ${changelogMd}
 - Vercel Blob for files
 - Telegram Bot API (text, images, voice, PDF)
 - Whisper for voice transcription, OpenAI vision for photo OCR, OpenAI TTS for audio replies
+
+## Trefolio ecosystem
+
+- trefolio (portfolio): ${TEAM_URL}
+- Clara (personal finance + MCP): https://clara.trefolio.com
 
 ## Support
 
