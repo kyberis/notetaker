@@ -214,6 +214,15 @@ export const LANDING_COPY = {
  */
 export const CHANGELOG = [
   {
+    version: "0.7.9",
+    date: "2026-05-09",
+    title: "Unified account hub link in settings",
+    highlights: [
+      "When you sign in with the shared trefolio IdP, Settings → Account links to user.trefolio.com/account for display name, password, OAuth, passkeys, and billing.",
+      "Profile name and avatar sync from the IdP together with your daily assistant quota.",
+    ],
+  },
+  {
     version: "0.7.8",
     date: "2026-05-09",
     title: "IdP login respects ecosystem language",
@@ -276,7 +285,7 @@ export const CHANGELOG = [
     date: "2026-05-05",
     title: "Login always uses the shared IdP on Vercel",
     highlights: [
-      "If IDP client credentials are set, /login and /register now default to user.trefolio.com. Set USE_LEGACY_AUTH=true only when you need the old email or Google form (self-host or emergency rollback).",
+      "If IDP client credentials are set, /login and /register show a short bridge (countdown + Continue) before sending you to user.trefolio.com. Omit `IDP_CLIENT_SECRET` locally only when you still need password or Google sign-in for dev.",
     ],
   },
   {
@@ -284,7 +293,7 @@ export const CHANGELOG = [
     date: "2026-05-05",
     title: "Unified sign-in at user.trefolio.com",
     highlights: [
-      "When unified accounts are enabled (IdP client credentials set, USE_LEGACY_AUTH not true), /login and /register send you straight to the shared IdP — same email and plan as trefolio and Clara.",
+      "When unified accounts are enabled (IdP OAuth client fully configured), /login and /register use the shared IdP — same email and plan as trefolio and Clara.",
       "On Vercel production, the app ignores a mistaken IDP_BASE_URL pointing at localhost and uses https://user.trefolio.com instead.",
     ],
   },

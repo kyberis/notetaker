@@ -43,20 +43,23 @@ export function getIdpBaseUrl(): string {
 }
 
 /**
- * Whether `/login` and `/register` should send users to the unified IdP
- * (`user.trefolio.com`) via NextAuth `trefolio-id`.
- *
- * Requires full OAuth client config. **Unified IdP is the default** whenever
- * those vars are set; set **`USE_LEGACY_AUTH=true`** explicitly to keep the
- * local email/password (+ optional Google) forms (rollback / self-host).
+ * Whether Will is configured to use the unified IdP (`user.trefolio.com`) via
+ * NextAuth provider `trefolio-id`. Requires full OAuth client env.
  */
-export function shouldSendUsersToUnifiedIdp(): boolean {
-  const configured =
+export function isWillIdpOAuthConfigured(): boolean {
+  return (
     Boolean(getIdpBaseUrl()) &&
     Boolean(process.env.IDP_CLIENT_ID?.trim()) &&
-    Boolean(process.env.IDP_CLIENT_SECRET?.trim());
-  if (!configured) return false;
-  return process.env.USE_LEGACY_AUTH !== "true";
+    Boolean(process.env.IDP_CLIENT_SECRET?.trim())
+  );
+}
+
+/**
+ * @deprecated Use {@link isWillIdpOAuthConfigured}; kept for call sites that
+ * read "unified" in the name.
+ */
+export function shouldSendUsersToUnifiedIdp(): boolean {
+  return isWillIdpOAuthConfigured();
 }
 
 /**
@@ -80,5 +83,15 @@ export function buildIdpUpgradeUrlForWill(
   u.searchParams.set("from", "will");
   if (idpSub) u.searchParams.set("sub", idpSub);
   if (opts?.interval) u.searchParams.set("interval", opts.interval);
+  return u.toString();
+}
+
+/** Unified account hub on user.trefolio.com (profile, passkeys, password). */
+export function buildIdpAccountUrlForWill(): string | null {
+  if (!isWillIdpOAuthConfigured()) return null;
+  const origin = getIdpBrowserOrigin();
+  if (!origin) return null;
+  const u = new URL(`${origin.replace(/\/+$/, "")}/account`);
+  u.searchParams.set("from", "will");
   return u.toString();
 }

@@ -4,7 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 
 import { db } from "@/lib/db";
-import { getIdpBaseUrl, shouldSendUsersToUnifiedIdp } from "@/lib/idp-base";
+import { getIdpBaseUrl, isWillIdpOAuthConfigured } from "@/lib/idp-base";
 import { syncEntitlementsFromIdpForUser } from "@/lib/idp/sync-entitlements";
 import { log } from "@/lib/log";
 
@@ -29,6 +29,33 @@ function isAdminEmail(email: string | null | undefined): boolean {
   return ADMIN_EMAILS.has(email.toLowerCase());
 }
 
+const trefolioIdProvider = {
+  id: "trefolio-id",
+  name: "Trefolio Account",
+  type: "oauth" as const,
+  allowDangerousEmailAccountLinking: true,
+  wellKnown: `${getIdpBaseUrl()}/.well-known/openid-configuration`,
+  authorization: {
+    params: {
+      scope: "openid email profile entitlements",
+      app_hint: "will",
+    },
+  },
+  clientId: process.env.IDP_CLIENT_ID,
+  clientSecret: process.env.IDP_CLIENT_SECRET,
+  idToken: true,
+  checks: ["pkce", "state"] as Array<"pkce" | "state">,
+  profile(profile: Record<string, unknown>) {
+    const email = typeof profile.email === "string" ? profile.email.toLowerCase() : "";
+    return {
+      id: typeof profile.sub === "string" ? profile.sub : email,
+      name: typeof profile.name === "string" ? profile.name : null,
+      email,
+      image: null,
+    };
+  },
+};
+
 export const authOptions = {
   // Behind Caddy/Vercel, use X-Forwarded-Host so OAuth redirect_uri matches the browser URL.
   trustHost: true,
@@ -39,134 +66,92 @@ export const authOptions = {
     error: "/login",
     verifyRequest: "/verify-email",
   },
-  providers: [
-    CredentialsProvider({
-      id: "credentials",
-      name: "Email + password",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      authorize: async (credentials) => {
-        if (!credentials?.email || !credentials?.password) {
-          log.info("will.credentials_signin_missing_fields", {
-            hasEmail: Boolean(credentials?.email),
-            hasPassword: Boolean(credentials?.password),
-          });
-          return null;
-        }
-        const user = await db.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            image: true,
-            passwordHash: true,
-            isActive: true,
-            emailVerified: true,
-            deletedAt: true,
+  providers: isWillIdpOAuthConfigured()
+    ? [trefolioIdProvider]
+    : [
+        CredentialsProvider({
+          id: "credentials",
+          name: "Email + password",
+          credentials: {
+            email: { label: "Email", type: "email" },
+            password: { label: "Password", type: "password" },
           },
-        });
-        if (!user || !user.passwordHash) {
-          log.info("will.credentials_signin_unknown_or_no_password", {
-            emailDomainHint: credentials.email.includes("@")
-              ? credentials.email.slice(credentials.email.indexOf("@") + 1).toLowerCase()
-              : undefined,
-          });
-          return null;
-        }
-        if (!user.isActive) {
-          log.info("will.credentials_signin_inactive_user", {
-            emailDomainHint: credentials.email.includes("@")
-              ? credentials.email.slice(credentials.email.indexOf("@") + 1).toLowerCase()
-              : undefined,
-          });
-          return null;
-        }
-        if (user.deletedAt) {
-          // Soft-deleted account: signing in should restore it.
-          await db.user.update({
-            where: { id: user.id },
-            data: { deletedAt: null, deletionRemindersSent: 0 },
-          });
-        }
-        const ok = await verifyPassword(credentials.password, user.passwordHash);
-        if (!ok) {
-          log.info("will.credentials_signin_bad_password", {
-            emailDomainHint: credentials.email.includes("@")
-              ? credentials.email.slice(credentials.email.indexOf("@") + 1).toLowerCase()
-              : undefined,
-          });
-          return null;
-        }
-        log.info("will.credentials_signin_ok", {
-          emailDomainHint: user.email.includes("@")
-            ? user.email.slice(user.email.indexOf("@") + 1).toLowerCase()
-            : undefined,
-          userIdTail: user.id.length > 10 ? `…${user.id.slice(-8)}` : "***",
-        });
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-        };
-      },
-    }),
-    ...(useGoogle
-      ? [
-          GoogleProvider({
-            clientId: process.env.GOOGLE_CLIENT_ID!,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-            authorization: { params: { prompt: "consent", access_type: "offline" } },
-          }),
-        ]
-      : []),
-    ...(getIdpBaseUrl() &&
-    process.env.IDP_CLIENT_ID &&
-    process.env.IDP_CLIENT_SECRET
-        ? [
-          {
-            id: "trefolio-id",
-            name: "Trefolio Account",
-            type: "oauth" as const,
-            /**
-             * Required when the user already has a Will row (e.g. legacy Google
-             * or email/password) and signs in through user.trefolio.com for the
-             * first time — NextAuth must link `trefolio-id` to that user by
-             * email instead of throwing AccountNotLinkedError.
-             */
-            allowDangerousEmailAccountLinking: true,
-            wellKnown: `${getIdpBaseUrl()}/.well-known/openid-configuration`,
-            authorization: {
-              params: {
-                scope: "openid email profile entitlements",
-                app_hint: "will",
+          authorize: async (credentials) => {
+            if (!credentials?.email || !credentials?.password) {
+              log.info("will.credentials_signin_missing_fields", {
+                hasEmail: Boolean(credentials?.email),
+                hasPassword: Boolean(credentials?.password),
+              });
+              return null;
+            }
+            const user = await db.user.findUnique({
+              where: { email: credentials.email.toLowerCase() },
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                image: true,
+                passwordHash: true,
+                isActive: true,
+                emailVerified: true,
+                deletedAt: true,
               },
-            },
-            clientId: process.env.IDP_CLIENT_ID,
-            clientSecret: process.env.IDP_CLIENT_SECRET,
-            idToken: true,
-            checks: ["pkce", "state"] as Array<"pkce" | "state">,
-            profile(profile: Record<string, unknown>) {
-              const email =
-                typeof profile.email === "string"
-                  ? profile.email.toLowerCase()
-                  : "";
-              return {
-                id:
-                  typeof profile.sub === "string" ? profile.sub : email,
-                name:
-                  typeof profile.name === "string" ? profile.name : null,
-                email,
-                image: null,
-              };
-            },
+            });
+            if (!user || !user.passwordHash) {
+              log.info("will.credentials_signin_unknown_or_no_password", {
+                emailDomainHint: credentials.email.includes("@")
+                  ? credentials.email.slice(credentials.email.indexOf("@") + 1).toLowerCase()
+                  : undefined,
+              });
+              return null;
+            }
+            if (!user.isActive) {
+              log.info("will.credentials_signin_inactive_user", {
+                emailDomainHint: credentials.email.includes("@")
+                  ? credentials.email.slice(credentials.email.indexOf("@") + 1).toLowerCase()
+                  : undefined,
+              });
+              return null;
+            }
+            if (user.deletedAt) {
+              await db.user.update({
+                where: { id: user.id },
+                data: { deletedAt: null, deletionRemindersSent: 0 },
+              });
+            }
+            const ok = await verifyPassword(credentials.password, user.passwordHash);
+            if (!ok) {
+              log.info("will.credentials_signin_bad_password", {
+                emailDomainHint: credentials.email.includes("@")
+                  ? credentials.email.slice(credentials.email.indexOf("@") + 1).toLowerCase()
+                  : undefined,
+              });
+              return null;
+            }
+            log.info("will.credentials_signin_ok", {
+              emailDomainHint: user.email.includes("@")
+                ? user.email.slice(user.email.indexOf("@") + 1).toLowerCase()
+                : undefined,
+              userIdTail: user.id.length > 10 ? `…${user.id.slice(-8)}` : "***",
+            });
+            return {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              image: user.image,
+            };
           },
-        ]
-      : []),
-  ],
+        }),
+        ...(useGoogle
+          ? [
+              GoogleProvider({
+                clientId: process.env.GOOGLE_CLIENT_ID!,
+                clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+                authorization: { params: { prompt: "consent", access_type: "offline" } },
+              }),
+            ]
+          : []),
+      ],
   callbacks: {
     signIn: async ({ user, account, profile }) => {
       // Google: only allow if Google says the email is verified.
@@ -275,7 +260,7 @@ export const authOptions = {
       const now = Date.now();
       const uid = String(token.uid ?? token.sub ?? "");
       if (
-        shouldSendUsersToUnifiedIdp() &&
+        isWillIdpOAuthConfigured() &&
         uid &&
         (!syncTok.idpEntitlementSyncAt ||
           now - syncTok.idpEntitlementSyncAt > ENT_SYNC_MS)

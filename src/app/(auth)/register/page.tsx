@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 
-import { RegisterForm } from "@/components/auth/register-form";
-import IdpSignupRedirect from "@/components/auth/idp-signup-redirect";
-import { shouldSendUsersToUnifiedIdp } from "@/lib/idp-base";
+import { IdpUnifiedBridge } from "@/components/auth/idp-unified-bridge";
+import { isWillIdpOAuthConfigured } from "@/lib/idp-base";
 import { resolveWillUiLocalesForIdpAuthorize } from "@/lib/i18n/idp-ui-locales";
 
 export const metadata: Metadata = { title: "Create account" };
 
-type SearchParams = Promise<{ callbackUrl?: string }>;
+type SearchParams = Promise<{ callbackUrl?: string; error?: string }>;
 
 export default async function RegisterPage({
   searchParams,
@@ -15,22 +14,26 @@ export default async function RegisterPage({
   searchParams: SearchParams;
 }) {
   const params = await searchParams;
-  if (shouldSendUsersToUnifiedIdp()) {
-    const uiLocales = await resolveWillUiLocalesForIdpAuthorize();
-    return <IdpSignupRedirect callbackUrl={params.callbackUrl} uiLocales={uiLocales} />;
+  const uiLocales = await resolveWillUiLocalesForIdpAuthorize();
+
+  if (!isWillIdpOAuthConfigured()) {
+    return (
+      <div>
+        <h1 className="text-2xl font-semibold">Create your account</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          This deployment has no IdP OAuth client configured. Set IDP_BASE_URL, IDP_CLIENT_ID,
+          and IDP_CLIENT_SECRET, or use the hosted Will app.
+        </p>
+      </div>
+    );
   }
 
-  const useGoogle =
-    Boolean(process.env.GOOGLE_CLIENT_ID) && Boolean(process.env.GOOGLE_CLIENT_SECRET);
   return (
-    <div>
-      <h1 className="text-2xl font-semibold">Create your account</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Free. Open source. Two minutes.
-      </p>
-      <div className="mt-6">
-        <RegisterForm showGoogle={useGoogle} />
-      </div>
-    </div>
+    <IdpUnifiedBridge
+      mode="signup"
+      callbackUrl={params.callbackUrl}
+      uiLocales={uiLocales}
+      error={params.error}
+    />
   );
 }

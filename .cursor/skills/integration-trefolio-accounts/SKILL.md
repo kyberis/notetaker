@@ -2,7 +2,7 @@
 name: integration-trefolio-accounts
 description: >-
   Explains how Will (notetaker) integrates with user.trefolio.com via NextAuth OAuth
-  provider trefolio-id, IdP-only register redirect, entitlements sync, and env vars.
+  provider trefolio-id, IdP bridge on /login and /register, entitlements sync, and env vars.
   Use when editing src/lib/auth, IDP_* env, /register, or quota claims from the IdP.
 ---
 
@@ -28,16 +28,16 @@ From this skill file directory, approximate path: `../../../../../knowledge/desi
 | Area | Role |
 |------|------|
 | [`src/lib/auth/index.ts`](../../../src/lib/auth/index.ts) | NextAuth: `trefolio-id` with `app_hint: will`; `events.signIn` applies `entitlements.will_daily_limit` |
-| [`src/lib/idp-base.ts`](../../../src/lib/idp-base.ts) | `getIdpBaseUrl()` resolution |
-| [`src/app/(auth)/login/page.tsx`](../../../src/app/(auth)/login/page.tsx) | IdP-only auto redirect |
-| [`src/app/(auth)/register/page.tsx`](../../../src/app/(auth)/register/page.tsx) | IdP-only → `IdpSignupRedirect` |
-| [`src/components/auth/idp-signup-redirect.tsx`](../../../src/components/auth/idp-signup-redirect.tsx) | `signIn(..., { screen_hint: signup })` |
+| [`src/lib/idp-base.ts`](../../../src/lib/idp-base.ts) | `isWillIdpOAuthConfigured()` (IdP OAuth client); `getIdpBaseUrl()` |
+| [`src/app/(auth)/login/page.tsx`](../../../src/app/(auth)/login/page.tsx) | `IdpUnifiedBridge` when IdP configured; static copy when not |
+| [`src/app/(auth)/register/page.tsx`](../../../src/app/(auth)/register/page.tsx) | Same |
+| [`src/components/auth/idp-unified-bridge.tsx`](../../../src/components/auth/idp-unified-bridge.tsx) | Countdown + `signIn("trefolio-id", …)` |
 | [`src/app/api/auth/idp-signout/route.ts`](../../../src/app/api/auth/idp-signout/route.ts) | Logout coordination |
 
 ## Environment
 
 - `IDP_BASE_URL`, `IDP_CLIENT_ID` (typically `will`), `IDP_CLIENT_SECRET`
-- `USE_LEGACY_AUTH=false` — IdP login/register paths
+- **`isWillIdpOAuthConfigured()`** — when `IDP_BASE_URL`, `IDP_CLIENT_ID`, and `IDP_CLIENT_SECRET` are set, `/login` and `/register` use the bridge into the unified IdP; NextAuth exposes the **`trefolio-id`** provider only in that mode.
 
 With Caddy, keep **`NEXTAUTH_URL=https://will.trefolio-dev.com`** and usually **`IDP_BASE_URL=http://localhost:3300`**. Configure **`external/accounts`** with **`IDP_ISSUER`** / **`IDP_SERVER_ORIGIN`** so OIDC discovery does not advertise `localhost` for authorize ([`dev/README.md`](../../../../../dev/README.md)).
 
