@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { RegisterForm } from "@/components/auth/register-form";
 import IdpSignupRedirect from "@/components/auth/idp-signup-redirect";
 import { shouldSendUsersToUnifiedIdp } from "@/lib/idp-base";
+import { resolveWillUiLocalesForIdpAuthorize } from "@/lib/i18n/idp-ui-locales";
 
 export const metadata: Metadata = { title: "Create account" };
 
@@ -15,7 +16,8 @@ export default async function RegisterPage({
 }) {
   const params = await searchParams;
   if (shouldSendUsersToUnifiedIdp()) {
-    return <IdpSignupRedirect callbackUrl={params.callbackUrl} />;
+    const uiLocales = await resolveWillUiLocalesForIdpAuthorize();
+    return <IdpSignupRedirect callbackUrl={params.callbackUrl} uiLocales={uiLocales} />;
   }
 
   const useGoogle =

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { LoginForm } from "@/components/auth/login-form";
 import IdpAutoRedirect from "@/components/auth/idp-auto-redirect";
 import { shouldSendUsersToUnifiedIdp } from "@/lib/idp-base";
+import { resolveWillUiLocalesForIdpAuthorize } from "@/lib/i18n/idp-ui-locales";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -15,7 +16,8 @@ type SearchParams = Promise<{
 export default async function LoginPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   if (shouldSendUsersToUnifiedIdp() && !params.error) {
-    return <IdpAutoRedirect callbackUrl={params.callbackUrl} />;
+    const uiLocales = await resolveWillUiLocalesForIdpAuthorize();
+    return <IdpAutoRedirect callbackUrl={params.callbackUrl} uiLocales={uiLocales} />;
   }
   const useGoogle =
     Boolean(process.env.GOOGLE_CLIENT_ID) && Boolean(process.env.GOOGLE_CLIENT_SECRET);

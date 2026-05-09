@@ -214,6 +214,14 @@ export const LANDING_COPY = {
  */
 export const CHANGELOG = [
   {
+    version: "0.7.8",
+    date: "2026-05-09",
+    title: "IdP login respects ecosystem language",
+    highlights: [
+      "Sign-in and registration redirects to user.trefolio.com now send OIDC `ui_locales` from the shared `trefolio_ui_locale` cookie (set by Warren apps on `.trefolio.com`) or your browser language.",
+    ],
+  },
+  {
     version: "0.7.7",
     date: "2026-05-09",
     title: "IdP quota sync and unified-upgrade cleanup",
