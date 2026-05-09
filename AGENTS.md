@@ -97,9 +97,9 @@ knowledge/           Agent knowledge base (this is the system of record)
   / business errors to HTTP shapes is centralised in
   [`src/lib/http.ts`](src/lib/http.ts). Never `try/catch + rethrow` in
   handlers.
-- **AI uses the Vercel AI Gateway** when `AI_GATEWAY_API_KEY` /
-  `VERCEL_OIDC_TOKEN` is set, falling back to direct OpenAI. **Whisper + TTS
-  always hit OpenAI directly** (Gateway does not support those endpoints).
+- **AI uses the Vercel AI Gateway** for chat (`gateway(...)`) and for Whisper,
+  vision, and TTS via the OpenAI SDK with `baseURL` set to the Gateway. Env resolution:
+  `AI_GATEWAY_API_KEY` → `VERCEL_OIDC_TOKEN` → `OPENAI_API_KEY`.
 - **Self-hostable by default.** Optional integrations (Telegram, Resend,
   Upstash, Blob, Turnstile, AI Gateway) must degrade gracefully when env
   vars are missing.

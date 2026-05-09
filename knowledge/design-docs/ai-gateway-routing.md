@@ -8,26 +8,27 @@ operational concerns. We want:
 - A single chokepoint for cost tracking and per-model retries.
 - The ability to swap providers (OpenAI ↔ Anthropic ↔ Google) without
   touching feature code.
-- A self-host story: a developer with only an `OPENAI_API_KEY` should
-  get a working agent without signing up for the Vercel AI Gateway.
-- Voice and audio features (Whisper STT, TTS) that work even when the
-  Gateway can't proxy them.
+- A self-host story: `AI_GATEWAY_API_KEY`, `VERCEL_OIDC_TOKEN`, or legacy
+  `OPENAI_API_KEY` resolve through [`gateway-auth.ts`](../../src/lib/ai/gateway-auth.ts).
+- Voice and vision use the **same Gateway host** as chat (`OpenAI` SDK with
+  `baseURL` set to `https://ai-gateway.vercel.sh/v1`).
 
 ## Decision
 
-The agent loop calls **Vercel AI Gateway** when an `AI_GATEWAY_API_KEY`
-or `VERCEL_OIDC_TOKEN` is set, and falls back to direct OpenAI
-otherwise. **Whisper, vision, and TTS always hit OpenAI directly**
-(those endpoints are not proxied by the Gateway today).
+[`resolveGatewayApiKeyFromEnv`](../../src/lib/ai/gateway-auth.ts) supplies the bearer
+token; all `OpenAI` SDK clients use **`baseURL: https://ai-gateway.vercel.sh/v1`**.
+Chat continues to use `generateText({ model: gateway(...) })` from the AI SDK.
+
+There is **no** remaining integration with `https://api.openai.com` in production code paths.
 
 Routing matrix:
 
-| Use case | Provider | Where in code |
-|----------|----------|---------------|
-| Chat / agent loop | AI Gateway when configured, else direct OpenAI | [`src/lib/ai/run-note-agent.ts`](../../src/lib/ai/run-note-agent.ts) — `gateway(DEFAULT_MODEL)` |
-| Whisper (audio → text) | Direct OpenAI only | [`src/lib/ai/transcribe.ts`](../../src/lib/ai/transcribe.ts) |
-| Vision (image → text) | Direct OpenAI (chat completions with `image_url`) | [`src/lib/ai/extract.ts`](../../src/lib/ai/extract.ts) |
-| TTS (text → audio) | Direct OpenAI only | [`src/lib/ai/text-to-speech.ts`](../../src/lib/ai/text-to-speech.ts) |
+| Use case | Provider path | Where in code |
+|----------|---------------|---------------|
+| Chat / agent loop | `gateway(DEFAULT_MODEL)` | [`run-note-agent.ts`](../../src/lib/ai/run-note-agent.ts) |
+| Whisper (audio → text) | OpenAI SDK → Gateway `/v1/audio/transcriptions` | [`transcribe.ts`](../../src/lib/ai/transcribe.ts) |
+| Vision (image → text) | OpenAI SDK → Gateway `/v1/chat/completions` | [`extract.ts`](../../src/lib/ai/extract.ts) |
+| TTS (text → audio) | OpenAI SDK → Gateway `/v1/audio/speech` | [`text-to-speech.ts`](../../src/lib/ai/text-to-speech.ts) |
 
 The chat model defaults to `openai/gpt-4o-mini`, overridable per
 environment via `AI_MODEL`. Models are **always** referenced as
@@ -39,16 +40,12 @@ environment via `AI_MODEL`. Models are **always** referenced as
 cost tracking, automatic retries, and the option to fail over to a
 second model when one provider is degraded.
 
-**Why not "always Gateway"?** Whisper / TTS are not Gateway-proxied at
-the time of writing. Forcing Gateway here would silently break the
-voice features. Also: a self-host story without the Gateway is core to
-the MIT positioning.
+**Why route Whisper / vision / TTS through Gateway too?** Same bearer token and
+outbound host as chat; models use `openai/<id>` IDs via `toGatewayModelId`.
 
 **Why not abstract the provider behind our own interface?** The Vercel
-AI SDK already does this. Wrapping the wrap is overhead. The agent
-loop calls `generateText({ model: gateway(...) })` — when the Gateway
-token is missing, the SDK transparently uses direct OpenAI. We get the
-fallback for free.
+AI SDK handles chat via `gateway(...)`. For audio and vision we configure the
+official `OpenAI` SDK once with the Gateway `baseURL` instead of adding another wrapper.
 
 **Why pin the default to `gpt-4o-mini`?** Cost and latency. The agent
 runs up to 6 tool-calling steps per turn; mini is the right default for
@@ -70,13 +67,14 @@ const result = await generateText({
 ```
 
 Never hardcode an absolute model in feature code — pass it in or read
-the env. Never call `new OpenAI(...)` directly for chat — use
-`generateText({ model: gateway(...) })`.
+the env. For chat use `generateText({ model: gateway(...) })`. For SDK-based
+calls (`transcribe`, `extract`, `text-to-speech`), build the shared `OpenAI`
+client with `baseURL` from [`gateway-auth.ts`](../../src/lib/ai/gateway-auth.ts)
+and wrap bare model names with `toGatewayModelId(...)`.
 
 When **adding a new audio / speech / vision call**:
 
-- Call OpenAI directly with the official client. Document in the
-  feature's spec that this is intentionally not Gateway-routed.
+- Extend [`gateway-auth.ts`](../../src/lib/ai/gateway-auth.ts) if auth resolution changes; keep **one** outbound AI host.
 
 When **changing the default model**:
 
@@ -89,8 +87,8 @@ When **changing the default model**:
 
 ## How to enforce it
 
-- New code that imports `openai` directly for chat (not Whisper / TTS
-  / vision) should be flagged in code review.
+- New chat code should use `gateway(...)` from the AI SDK. Any use of the
+  `openai` npm package must set `baseURL` to the Gateway (see existing modules).
 - Tests for agent / classification helpers should mock `generateText`
   at the module boundary (not the `openai` client) so the abstraction
   stays.

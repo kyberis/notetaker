@@ -1,14 +1,15 @@
 import OpenAI from "openai";
 
 import { log } from "@/lib/log";
+import { resolveGatewayApiKeyFromEnv, VERCEL_AI_GATEWAY_BASE, toGatewayModelId } from "@/lib/ai/gateway-auth";
 
 let cachedClient: OpenAI | null = null;
 
 function client(): OpenAI | null {
   if (cachedClient) return cachedClient;
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = resolveGatewayApiKeyFromEnv();
   if (!apiKey) return null;
-  cachedClient = new OpenAI({ apiKey });
+  cachedClient = new OpenAI({ apiKey, baseURL: VERCEL_AI_GATEWAY_BASE });
   return cachedClient;
 }
 
@@ -23,7 +24,7 @@ export async function extractFromImage(opts: { buffer: Buffer; mimeType?: string
   try {
     const dataUrl = `data:${opts.mimeType ?? "image/jpeg"};base64,${opts.buffer.toString("base64")}`;
     const res = await c.chat.completions.create({
-      model: process.env.AI_VISION_MODEL ?? "gpt-4o-mini",
+      model: toGatewayModelId(process.env.AI_VISION_MODEL ?? "gpt-4o-mini"),
       messages: [
         {
           role: "system",
