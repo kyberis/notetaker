@@ -2,6 +2,7 @@ import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { NextResponse } from "next/server";
 
 import { authenticateWillMcpRequest, verifyWillMcpBearer } from "@/lib/mcp/will-pat-auth";
+import { LEGACY_WILL_MCP_SCOPES } from "@/lib/mcp/pat-scopes";
 import { registerWillUserMcp } from "@/lib/mcp/user-server";
 import { buildRateLimiter, enforceLimit } from "@/lib/rate-limit";
 
@@ -41,11 +42,12 @@ const authenticatedHandler = withMcpAuth(
     if (!bearer) return undefined;
     const auth = await verifyWillMcpBearer(bearer);
     if (!auth) return undefined;
+    const scopes = auth.scopes.length > 0 ? auth.scopes : [...LEGACY_WILL_MCP_SCOPES];
     return {
       token: bearer,
       clientId: auth.tokenId,
-      scopes: ["notes:read"],
-      extra: { userId: auth.userId, tokenId: auth.tokenId },
+      scopes,
+      extra: { userId: auth.userId, tokenId: auth.tokenId, scopes },
     };
   },
   { required: true },

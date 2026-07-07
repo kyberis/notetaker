@@ -4,7 +4,7 @@ import { getIdpBaseUrl, getIdpBrowserOrigin } from "@/lib/idp-base";
 
 const TFP_PAT_PREFIX = "tfp_pat_";
 
-type CachedOk = { sub: string; tokenId: string; until: number };
+type CachedOk = { sub: string; tokenId: string; scopes: string[]; until: number };
 const cache = new Map<string, CachedOk>();
 const TTL_MS = 45_000;
 const MAX_CACHE = 500;
@@ -21,7 +21,7 @@ export function isTfpPatToken(plaintext: string): boolean {
 
 export async function introspectTfpPat(
   plaintext: string,
-): Promise<{ sub: string; tokenId: string } | null> {
+): Promise<{ sub: string; tokenId: string; scopes: string[] } | null> {
   const secret = process.env.TREFOLIO_PAT_INTROSPECTION_SECRET?.trim();
   if (!secret) {
     console.warn("[accounts-pat-introspect] TREFOLIO_PAT_INTROSPECTION_SECRET is not set");
@@ -37,7 +37,7 @@ export async function introspectTfpPat(
   const now = Date.now();
   const hit = cache.get(key);
   if (hit && hit.until > now) {
-    return { sub: hit.sub, tokenId: hit.tokenId };
+    return { sub: hit.sub, tokenId: hit.tokenId, scopes: hit.scopes };
   }
 
   let res: Response;
@@ -56,20 +56,28 @@ export async function introspectTfpPat(
     return null;
   }
 
-  let data: { active?: boolean; sub?: string; token_id?: string };
+  let data: { active?: boolean; sub?: string; token_id?: string; scopes?: string[] };
   try {
-    data = (await res.json()) as { active?: boolean; sub?: string; token_id?: string };
+    data = (await res.json()) as {
+      active?: boolean;
+      sub?: string;
+      token_id?: string;
+      scopes?: string[];
+    };
   } catch {
     return null;
   }
   if (!data.active || !data.sub) return null;
   const tokenId = String(data.token_id ?? "");
+  const scopes = Array.isArray(data.scopes)
+    ? data.scopes.filter((s): s is string => typeof s === "string")
+    : [];
 
   while (cache.size > MAX_CACHE) {
     const first = cache.keys().next().value;
     if (first) cache.delete(first);
     else break;
   }
-  cache.set(key, { sub: data.sub, tokenId, until: now + TTL_MS });
-  return { sub: data.sub, tokenId };
+  cache.set(key, { sub: data.sub, tokenId, scopes, until: now + TTL_MS });
+  return { sub: data.sub, tokenId, scopes };
 }
