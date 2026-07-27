@@ -1,4 +1,22 @@
+import {
+  consumeQuota,
+  getUtcDay,
+  peekQuota,
+  type QuotaPort,
+} from "@kyberis/agent-os/runtime";
+
 import { db } from "@/lib/db";
+
+/**
+ * Daily agent message quota. Telegram and the web agent share one bucket.
+ *
+ * The day-boundary and over-limit arithmetic come from
+ * `@kyberis/agent-os/runtime`; this file is only the Prisma half. Keeping the
+ * verdict logic shared is what stops Will and Clara from disagreeing about
+ * whether the message that lands exactly on the limit is served.
+ */
+
+const DEFAULT_DAILY_LIMIT = 30;
 
 export type QuotaResult = {
   ok: boolean;
@@ -13,77 +31,78 @@ export type AgentQuotaSnapshot = {
   resetAtUtc: string;
 };
 
-function utcDay(now: Date): Date {
-  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  return d;
-}
-
 /** Today at 00:00 UTC (same boundary as `AgentMessageUsage.day`). */
 export function getTodayUtcDate(now: Date = new Date()): Date {
-  return utcDay(now);
+  return getUtcDay(now);
 }
 
-/** Next midnight UTC — when the daily counter resets. */
-function getResetAtUtc(now: Date = new Date()): string {
-  const today = getTodayUtcDate(now);
-  return new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString();
-}
+const port: QuotaPort = {
+  async getLimit(userId) {
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { dailyAgentMessageLimit: true },
+    });
+    return user?.dailyAgentMessageLimit ?? DEFAULT_DAILY_LIMIT;
+  },
+
+  async getCount(userId, day) {
+    const row = await db.agentMessageUsage.findUnique({
+      where: { userId_day: { userId, day } },
+      select: { count: true },
+    });
+    return row?.count ?? 0;
+  },
+
+  // Upsert-and-read-back so two Telegram updates arriving together cannot both
+  // slip past the limit.
+  async increment(userId, day) {
+    const updated = await db.agentMessageUsage.upsert({
+      where: { userId_day: { userId, day } },
+      create: { userId, day, count: 1 },
+      update: { count: { increment: 1 } },
+      select: { count: true },
+    });
+    return updated.count;
+  },
+};
 
 /**
  * Read-only snapshot for `/api/agent/usage` and the web UI badge. Does not
- * increment the counter. Telegram and (future) web agent share this bucket.
+ * increment the counter.
  */
 export async function getAgentQuotaSnapshot(userId: string): Promise<AgentQuotaSnapshot> {
-  const [user, row] = await Promise.all([
-    db.user.findUnique({
-      where: { id: userId },
-      select: { dailyAgentMessageLimit: true },
-    }),
-    db.agentMessageUsage.findUnique({
-      where: { userId_day: { userId, day: getTodayUtcDate() } },
-      select: { count: true },
-    }),
-  ]);
-  const limit = user?.dailyAgentMessageLimit ?? 30;
-  const used = row?.count ?? 0;
+  const verdict = await peekQuota(port, userId);
   return {
-    used,
-    limit,
-    remaining: Math.max(0, limit - used),
-    resetAtUtc: getResetAtUtc(),
+    used: verdict.count,
+    limit: verdict.limit,
+    remaining: verdict.remaining,
+    resetAtUtc: verdict.resetAtUtc,
   };
 }
 
 /**
- * Increment the user's daily agent counter. Returns whether the user is
- * still within quota AFTER the increment — callers should bail out if `ok`
- * is false. Atomically upserts the row and reads back the new count.
+ * Increment the user's daily agent counter. Returns whether the user is still
+ * within quota AFTER the increment — callers should bail out if `ok` is false.
  */
-export async function consumeAgentQuota(userId: string, now: Date = new Date()): Promise<QuotaResult> {
-  const day = getTodayUtcDate(now);
+export async function consumeAgentQuota(
+  userId: string,
+  now: Date = new Date(),
+): Promise<QuotaResult> {
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { dailyAgentMessageLimit: true },
+    select: { id: true },
   });
   if (!user) return { ok: false, count: 0, limit: 0 };
 
-  const updated = await db.agentMessageUsage.upsert({
-    where: { userId_day: { userId, day } },
-    create: { userId, day, count: 1 },
-    update: { count: { increment: 1 } },
-    select: { count: true },
-  });
-
-  return {
-    ok: updated.count <= user.dailyAgentMessageLimit,
-    count: updated.count,
-    limit: user.dailyAgentMessageLimit,
-  };
+  const verdict = await consumeQuota(port, userId, now);
+  return { ok: verdict.ok, count: verdict.count, limit: verdict.limit };
 }
 
-export async function recordAgentTokens(userId: string, opts: { input?: number; output?: number; now?: Date }) {
-  const now = opts.now ?? new Date();
-  const day = getTodayUtcDate(now);
+export async function recordAgentTokens(
+  userId: string,
+  opts: { input?: number; output?: number; now?: Date },
+) {
+  const day = getTodayUtcDate(opts.now ?? new Date());
   await db.agentMessageUsage.upsert({
     where: { userId_day: { userId, day } },
     create: {

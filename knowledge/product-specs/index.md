@@ -17,6 +17,10 @@ document following
 - [`agent-quota`](agent-quota.md) — per-user daily cap on agent
   messages (default 30/day, combined web + Telegram). Atomic upsert,
   templated quota-exceeded message in all four locales.
+- [`confirm-before-write`](confirm-before-write.md) — destructive agent
+  actions are described, not performed. Deleting a note shows a
+  Delete / Keep card; the write waits for the tap, expires after 15
+  minutes, and is checked against the owner and the originating chat.
 - [`gdpr-compliance`](gdpr-compliance.md) — demonstrable consent
   (`acceptedTermsAt` + `acceptedTermsVersion`), data export, account
   deletion with grace, contact form, retention windows.

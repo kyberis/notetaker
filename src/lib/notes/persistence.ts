@@ -122,6 +122,14 @@ export async function searchNotes(userId: string, opts: { query?: string; tag?: 
   });
 }
 
+/** Scoped by `userId` so a note id leaked into a prompt cannot read another account. */
+export async function getNoteById(userId: string, noteId: string) {
+  return await db.note.findFirst({
+    where: { id: noteId, userId },
+    select: { id: true, body: true, occurredAt: true },
+  });
+}
+
 export async function deleteNote(userId: string, noteId: string) {
   const result = await db.note.deleteMany({ where: { id: noteId, userId } });
   return result.count > 0;

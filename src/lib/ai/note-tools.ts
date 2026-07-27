@@ -1,4 +1,5 @@
 import { tool } from "ai";
+import type { Proposal } from "@kyberis/agent-os/safety";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
@@ -7,13 +8,16 @@ import { log } from "@/lib/log";
 import {
   attachTagsToNote,
   createNote,
-  deleteNote as deleteNotePersist,
   listRecentNotes,
   searchNotes,
   updateNote as updateNotePersist,
 } from "@/lib/notes/persistence";
 import { normalizeTagName } from "@/lib/notes/tags";
 import { scheduleReminder } from "@/lib/reminders/schedule";
+import {
+  buildDeletePreview,
+  type WillProposalKind,
+} from "@/lib/safety/proposal-registry";
 
 const NoteSourceSchema = z.enum([
   "TELEGRAM_TEXT",
@@ -26,10 +30,26 @@ const NoteSourceSchema = z.enum([
 export type NoteSourceLiteral = z.infer<typeof NoteSourceSchema>;
 
 /**
+ * Raise a proposal for a write that needs the user's approval. Supplied by the
+ * caller because only the caller knows which conversation the confirmation
+ * card will be delivered to. Returns `null` when the payload does not validate.
+ */
+export type RaiseProposal = (input: {
+  kind: WillProposalKind;
+  data: unknown;
+}) => Promise<Proposal<WillProposalKind> | null>;
+
+export type BuildNoteToolsOptions = {
+  userId: string;
+  defaultSource: NoteSourceLiteral;
+  onProposal?: RaiseProposal;
+};
+
+/**
  * Build the agent tool set. Tools are bound to a specific user + source so
  * the model can never write to a different account or invent provenance.
  */
-export function buildNoteTools(opts: { userId: string; defaultSource: NoteSourceLiteral }) {
+export function buildNoteTools(opts: BuildNoteToolsOptions) {
   return {
     saveNote: tool({
       description:
@@ -131,14 +151,29 @@ export function buildNoteTools(opts: { userId: string; defaultSource: NoteSource
     }),
 
     deleteNote: tool({
-      description: "Delete a note. The `confirm` flag must be true.",
+      description:
+        "Ask the user to confirm deleting a note. This does NOT delete anything — it shows the user a Confirm/Keep card and the note is only removed once they tap Confirm. Tell the user you are asking them to confirm; never claim the note is gone.",
       inputSchema: z.object({
         id: z.string(),
-        confirm: z.literal(true),
       }),
       execute: async ({ id }) => {
-        const ok = await deleteNotePersist(opts.userId, id);
-        return { deleted: ok };
+        if (!opts.onProposal) {
+          // No channel is able to collect a confirmation on this turn, so the
+          // safe answer is to do nothing rather than fall back to deleting.
+          return { proposed: false, reason: "confirmation_unavailable" };
+        }
+        const preview = await buildDeletePreview(opts.userId, id);
+        if (preview === undefined) {
+          return { proposed: false, reason: "not_found" };
+        }
+        const proposal = await opts.onProposal({
+          kind: "deleteNote",
+          data: { noteId: id, preview },
+        });
+        if (!proposal) {
+          return { proposed: false, reason: "not_found" };
+        }
+        return { proposed: true, proposalId: proposal.id };
       },
     }),
 

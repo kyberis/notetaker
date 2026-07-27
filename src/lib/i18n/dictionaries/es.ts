@@ -28,10 +28,19 @@ export const es: BotDictionary = {
     voiceTooLong: "El audio es muy largo, milord. Mantenelo bajo los 10 minutos.",
     photoFailed: "No pude descifrar esa imagen. ¿Me la mandás como texto?",
     pdfFailed: "No pude leer ese PDF. ¿Probá uno más chico o pegame el texto?",
+    confirmDeleteTitle: "¿La borro del pergamino?",
+    confirmDeleteSummary: "Una vez borrada, no hay vuelta atrás.",
+    confirmNoteLabel: "Nota",
+    deleteCancelled: "La dejo donde está, milord. No borré nada.",
+    confirmStale:
+      "Ese pedido ya quedó viejo, milord. Pedímelo de nuevo y te lo ofrezco otra vez.",
+    confirmFailed: "No pude hacerlo. ¿Probamos de nuevo?",
   },
   buttons: {
     yes: "Sí",
     no: "No",
     skip: "Saltar",
+    delete: "Borrar",
+    cancel: "Dejarla",
   },
 };

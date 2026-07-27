@@ -24,11 +24,19 @@ export type BotDictionary = {
     voiceTooLong: string;
     photoFailed: string;
     pdfFailed: string;
+    confirmDeleteTitle: string;
+    confirmDeleteSummary: string;
+    confirmNoteLabel: string;
+    deleteCancelled: string;
+    confirmStale: string;
+    confirmFailed: string;
   };
   buttons: {
     yes: string;
     no: string;
     skip: string;
+    delete: string;
+    cancel: string;
   };
 };
 
@@ -60,10 +68,19 @@ export const en: BotDictionary = {
     photoFailed: "I couldn't decipher that image. Send the text instead?",
     pdfFailed:
       "I couldn't read that PDF. Send a smaller file or paste the text?",
+    confirmDeleteTitle: "Strike this from the page?",
+    confirmDeleteSummary: "Once struck, it cannot be restored.",
+    confirmNoteLabel: "Note",
+    deleteCancelled: "Kept, milord. Nothing was struck.",
+    confirmStale:
+      "That request hath grown stale, milord. Ask me again and I'll offer it anew.",
+    confirmFailed: "I could not carry that out. Try again?",
   },
   buttons: {
     yes: "Yes",
     no: "No",
     skip: "Skip",
+    delete: "Delete",
+    cancel: "Keep",
   },
 };

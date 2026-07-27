@@ -25,10 +25,18 @@ export const ar: BotDictionary = {
     voiceTooLong: "الرسالة الصوتية طويلة جداً. اجعلها أقل من 10 دقائق.",
     photoFailed: "لم أستطع قراءة هذه الصورة. أرسلها كنص؟",
     pdfFailed: "لم أستطع قراءة ملف PDF. جرب ملفاً أصغر أو الصق النص؟",
+    confirmDeleteTitle: "هل أحذف هذه من السجل؟",
+    confirmDeleteSummary: "بعد الحذف لا يمكن استرجاعها.",
+    confirmNoteLabel: "الملاحظة",
+    deleteCancelled: "أبقيتها كما هي. لم أحذف شيئاً.",
+    confirmStale: "انتهت صلاحية هذا الطلب. اطلبه مرة أخرى وسأعرضه من جديد.",
+    confirmFailed: "لم أتمكن من تنفيذ ذلك. أحاول مرة أخرى؟",
   },
   buttons: {
     yes: "نعم",
     no: "لا",
     skip: "تخطّي",
+    delete: "حذف",
+    cancel: "إبقاء",
   },
 };

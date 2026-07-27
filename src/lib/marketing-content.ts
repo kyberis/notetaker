@@ -214,6 +214,16 @@ export const LANDING_COPY = {
  */
 export const CHANGELOG = [
   {
+    version: "0.8.0",
+    date: "2026-07-27",
+    title: "Will asks before he strikes a note out",
+    highlights: [
+      "Deleting a note now shows a Delete/Keep card in Telegram. Nothing is removed until you tap Delete, and the request expires after 15 minutes.",
+      "A tap is checked against the account and the chat it came from, so a stale or misdirected button can't remove anything.",
+      "Available in all four agent languages.",
+    ],
+  },
+  {
     version: "0.7.9",
     date: "2026-05-09",
     title: "Unified account hub link in settings",

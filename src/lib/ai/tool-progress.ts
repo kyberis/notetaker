@@ -58,11 +58,12 @@ const TOOL_LABELS: Record<string, LocaleMap> = {
     pt: "🔍 Pesquisando em suas notas…",
     ar: "🔍 جاري البحث في ملاحظاتك…",
   },
+  // The tool only raises a confirmation card; the delete happens on the tap.
   deleteNote: {
-    en: "🗑️ Deleting the note…",
-    es: "🗑️ Borrando la nota…",
-    pt: "🗑️ Excluindo a nota…",
-    ar: "🗑️ جاري حذف الملاحظة…",
+    en: "🗑️ Preparing a confirmation…",
+    es: "🗑️ Preparando la confirmación…",
+    pt: "🗑️ Preparando a confirmação…",
+    ar: "🗑️ جاري تجهيز التأكيد…",
   },
   updateNote: {
     en: "✏️ Updating the note…",
