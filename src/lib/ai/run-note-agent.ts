@@ -1,9 +1,15 @@
 import { generateText, gateway, stepCountIs, type ModelMessage } from "ai";
+import type { Proposal } from "@kyberis/agent-os/safety";
 
 import type { Locale } from "@/lib/i18n/locale";
 import { log } from "@/lib/log";
+import type { WillProposalKind } from "@/lib/safety/proposal-registry";
 
-import { buildNoteTools, type NoteSourceLiteral } from "./note-tools";
+import {
+  buildNoteTools,
+  type NoteSourceLiteral,
+  type RaiseProposal,
+} from "./note-tools";
 import { buildSystemPrompt } from "./prompts";
 
 const DEFAULT_MODEL = process.env.AI_MODEL ?? "openai/gpt-4o-mini";
@@ -21,12 +27,19 @@ export type RunNoteAgentInput = {
    * swallowed — progress UI must never break the agent loop.
    */
   onStep?: (event: { toolNames: string[]; stepNumber: number }) => void | Promise<void>;
+  /**
+   * Raises a confirm-before-write proposal. Omit it and the agent simply cannot
+   * offer destructive actions on this turn — it never falls back to writing.
+   */
+  onProposal?: RaiseProposal;
 };
 
 export type RunNoteAgentResult = {
   text: string;
   inputTokens?: number;
   outputTokens?: number;
+  /** Proposals raised during the turn, for the caller to render as cards. */
+  proposals: Proposal<WillProposalKind>[];
 };
 
 /**
@@ -39,7 +52,18 @@ export type RunNoteAgentResult = {
  * giving us cost tracking + retries. Otherwise the SDK uses direct OpenAI.
  */
 export async function runNoteAgent(input: RunNoteAgentInput): Promise<RunNoteAgentResult> {
-  const tools = buildNoteTools({ userId: input.userId, defaultSource: input.source });
+  const proposals: Proposal<WillProposalKind>[] = [];
+  const tools = buildNoteTools({
+    userId: input.userId,
+    defaultSource: input.source,
+    onProposal: input.onProposal
+      ? async (raised) => {
+          const proposal = await input.onProposal!(raised);
+          if (proposal) proposals.push(proposal);
+          return proposal;
+        }
+      : undefined,
+  });
   const system = buildSystemPrompt({ locale: input.locale, nowUtc: new Date() });
 
   try {
@@ -72,6 +96,7 @@ export async function runNoteAgent(input: RunNoteAgentInput): Promise<RunNoteAge
       text: result.text,
       inputTokens: result.usage?.inputTokens,
       outputTokens: result.usage?.outputTokens,
+      proposals,
     };
   } catch (err) {
     log.error("run_note_agent_failed", {

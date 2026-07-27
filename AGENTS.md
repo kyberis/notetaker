@@ -100,6 +100,16 @@ knowledge/           Agent knowledge base (this is the system of record)
 - **AI uses the Vercel AI Gateway** for chat (`gateway(...)`) and for Whisper,
   vision, and TTS via the OpenAI SDK with `baseURL` set to the Gateway. Env resolution:
   `AI_GATEWAY_API_KEY` → `VERCEL_OIDC_TOKEN` → `OPENAI_API_KEY`.
+- **Shared platform code lives in [`@kyberis/agent-os`](https://github.com/kyberis/agent-os)**,
+  pinned to a git tag. Gateway auth, quota arithmetic, Telegram formatting and
+  the confirm-before-write machinery are shared with Clara and Warren — fix
+  those there, not here, or the fleet drifts apart again. Will keeps thin
+  wrappers (`src/lib/ai/gateway-auth.ts`, `src/lib/telegram/format.ts`,
+  `src/lib/agent-quota.ts`, `src/lib/safety/`) that hold the Prisma and
+  vocabulary half.
+- **Destructive agent actions need a tap.** `deleteNote` raises a proposal and
+  the write happens on the callback. See
+  [`knowledge/product-specs/confirm-before-write.md`](knowledge/product-specs/confirm-before-write.md).
 - **Self-hostable by default.** Optional integrations (Telegram, Resend,
   Upstash, Blob, Turnstile, AI Gateway) must degrade gracefully when env
   vars are missing.

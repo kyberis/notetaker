@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { type ModelMessage } from "ai";
+import { decodeProposalCallback, renderProposal } from "@kyberis/agent-os/safety";
 
 import { consumeAgentQuota, recordAgentTokens } from "@/lib/agent-quota";
+import { buildProposalRegistry } from "@/lib/safety/proposal-registry";
+import { proposalStore } from "@/lib/safety/proposal-store";
 import { buildIdpUpgradeUrlForWill, shouldSendUsersToUnifiedIdp } from "@/lib/idp-base";
 import { extractFromImage, extractFromPdf } from "@/lib/ai/extract";
 import { runNoteAgent } from "@/lib/ai/run-note-agent";
@@ -13,6 +16,7 @@ import { isLocale } from "@/lib/i18n/locale";
 import { log } from "@/lib/log";
 import { buildRateLimiter, enforceLimit } from "@/lib/rate-limit";
 import {
+  answerCallbackQuery,
   deleteTelegramMessage,
   downloadTelegramFile,
   editTelegramMessage,
@@ -60,7 +64,18 @@ type TgMessage = {
   photo?: TgPhoto[];
   document?: TgDocument;
 };
-type TgUpdate = { update_id: number; message?: TgMessage; edited_message?: TgMessage };
+type TgCallbackQuery = {
+  id: string;
+  from?: TgUser;
+  data?: string;
+  message?: { message_id: number; chat: TgChat };
+};
+type TgUpdate = {
+  update_id: number;
+  message?: TgMessage;
+  edited_message?: TgMessage;
+  callback_query?: TgCallbackQuery;
+};
 
 const HISTORY_WINDOW = 6;
 const MAX_VOICE_SECONDS = 600;
@@ -79,6 +94,13 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "bad_json" }, { status: 400 });
   }
+  // 2b) A tap on a Confirm/Keep card. This is the only path that performs a
+  //     destructive write, and it never reaches the agent.
+  if (update.callback_query) {
+    await handleProposalCallback(update.callback_query);
+    return NextResponse.json({ ok: true });
+  }
+
   const message = update.message ?? update.edited_message;
   if (!message?.from) return NextResponse.json({ ok: true });
   if (message.from.is_bot) return NextResponse.json({ ok: true });
@@ -176,14 +198,24 @@ export async function POST(req: Request) {
   });
   let lastStatusText = initialThinkingLabel(locale);
 
-  // 8) Run the agent.
-  let reply: { text: string; inputTokens?: number; outputTokens?: number };
+  // 8) Run the agent. Destructive tools raise a proposal instead of writing;
+  //    the card goes out below and the write waits for a tap.
+  const registry = buildProposalRegistry(locale);
+  let reply: Awaited<ReturnType<typeof runNoteAgent>>;
   try {
     reply = await runNoteAgent({
       userId: user.id,
       locale,
       source: materialised.source,
       messages,
+      onProposal: ({ kind, data }) =>
+        registry.propose({
+          store: proposalStore,
+          userId: user.id,
+          conversationExternalId: String(message.chat.id),
+          kind,
+          raw: data,
+        }),
       onStep: status
         ? async ({ toolNames }) => {
             if (toolNames.length === 0) return;
@@ -241,6 +273,27 @@ export async function POST(req: Request) {
     telemetryUserId: user.id,
   });
 
+  // Confirmation cards follow the prose so the user reads the explanation
+  // before the buttons.
+  for (const proposal of reply.proposals) {
+    const card = renderProposal(proposal, {
+      confirm: D.buttons.yes,
+      cancel: D.buttons.cancel,
+      destructive: D.buttons.delete,
+    });
+    await sendTelegramMessage({
+      chatId: message.chat.id,
+      text: formatAgentMarkdownForTelegramHtml(card.text),
+      telemetryUserId: user.id,
+      inlineKeyboard: [
+        card.choices.map((choice) => ({
+          text: choice.label,
+          callback_data: choice.callbackData,
+        })),
+      ],
+    });
+  }
+
   if (user.ttsEnabled) {
     try {
       // Markdown markers (**, *, `) read terribly when spoken; feed plain
@@ -256,6 +309,91 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ ok: true });
+}
+
+/**
+ * Apply or discard a pending write after the user taps a card button.
+ *
+ * The tap is not trusted on its own: `callback_data` is client-supplied, so the
+ * shared registry re-checks the owner, the originating chat, the status and the
+ * expiry against the stored row before anything is deleted.
+ */
+async function handleProposalCallback(query: TgCallbackQuery): Promise<void> {
+  const decoded = decodeProposalCallback(query.data);
+  const chatId = query.message?.chat.id;
+  if (!decoded || chatId === undefined) {
+    await answerCallbackQuery(query.id);
+    return;
+  }
+
+  const from = query.from;
+  if (!from || from.is_bot) {
+    await answerCallbackQuery(query.id);
+    return;
+  }
+
+  const user = await db.user.findUnique({
+    where: { telegramUserId: BigInt(from.id) },
+    select: { id: true, locale: true, deletedAt: true, isActive: true },
+  });
+  if (!user || user.deletedAt || !user.isActive) {
+    await answerCallbackQuery(query.id);
+    return;
+  }
+
+  const locale: Locale = isLocale(user.locale) ? user.locale : "en";
+  const D = dict(locale);
+  const registry = buildProposalRegistry(locale);
+
+  const outcome =
+    decoded.decision === "confirm"
+      ? await registry.confirm({
+          store: proposalStore,
+          proposalId: decoded.id,
+          userId: user.id,
+          conversationExternalId: String(chatId),
+        })
+      : await registry.cancel({
+          store: proposalStore,
+          proposalId: decoded.id,
+          userId: user.id,
+        });
+
+  const text = (() => {
+    switch (outcome.status) {
+      case "applied":
+        return outcome.message ?? D.bot.deleted;
+      case "cancelled":
+        return D.bot.deleteCancelled;
+      case "expired":
+      case "not_found":
+        return D.bot.confirmStale;
+      case "forbidden":
+        return D.bot.confirmStale;
+      default:
+        return outcome.error ?? D.bot.confirmFailed;
+    }
+  })();
+
+  if (outcome.status === "failed") {
+    log.warn("proposal_confirm_failed", {
+      userId: user.id,
+      proposalId: decoded.id,
+      error: outcome.error,
+    });
+  }
+
+  await answerCallbackQuery(query.id);
+  // Replace the card with the result so the buttons cannot be tapped twice.
+  if (query.message) {
+    await editTelegramMessage({
+      chatId,
+      messageId: query.message.message_id,
+      text,
+    });
+  } else {
+    await sendTelegramMessage({ chatId, text, telemetryUserId: user.id });
+  }
 }
 
 type ResolvedUser = {
