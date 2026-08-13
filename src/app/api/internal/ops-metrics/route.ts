@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
 import { withApi } from "@/lib/http";
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       db.user.count({ where: { isAdmin: true } }),
     ]);
 
-    return {
+    return NextResponse.json({
       product: "will" as const,
       generatedAt: new Date().toISOString(),
       totals: {
@@ -43,6 +43,6 @@ export async function GET(req: NextRequest) {
         users_telegram_linked: telegramLinked,
         users_admin: admins,
       },
-    };
+    });
   });
 }
