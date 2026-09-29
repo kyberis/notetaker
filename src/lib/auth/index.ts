@@ -8,7 +8,24 @@ import { getIdpBaseUrl, isWillIdpOAuthConfigured } from "@/lib/idp-base";
 import { syncEntitlementsFromIdpForUser } from "@/lib/idp/sync-entitlements";
 import { log } from "@/lib/log";
 
+import { registrationApprovedAtForCreate } from "@/lib/registration-approval";
+
 import { verifyPassword } from "./password";
+
+function willPrismaAdapter() {
+  const base = PrismaAdapter(db);
+  return {
+    ...base,
+    async createUser(data: Parameters<NonNullable<typeof base.createUser>>[0]) {
+      const created = await base.createUser!(data);
+      await db.user.update({
+        where: { id: created.id },
+        data: { registrationApprovedAt: registrationApprovedAtForCreate() },
+      });
+      return created;
+    },
+  };
+}
 
 const useGoogle = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
@@ -59,7 +76,7 @@ const trefolioIdProvider = {
 export const authOptions = {
   // Behind Caddy/Vercel, use X-Forwarded-Host so OAuth redirect_uri matches the browser URL.
   trustHost: true,
-  adapter: PrismaAdapter(db),
+  adapter: willPrismaAdapter(),
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
@@ -202,8 +219,13 @@ export const authOptions = {
               email?: string;
               name?: string;
               entitlements?: { will_daily_limit?: number };
+              registration_approved?: boolean;
             }
           | undefined;
+        if (p?.registration_approved === false) {
+          log.info("will.idp_oauth_signin_blocked_registration_pending", {});
+          return false;
+        }
         const email = p?.email?.toLowerCase() ?? user.email?.toLowerCase();
         log.info("will.idp_oauth_signin_attempt", {
           emailDomainHint: email?.includes("@") ? email.slice(email.indexOf("@") + 1) : undefined,

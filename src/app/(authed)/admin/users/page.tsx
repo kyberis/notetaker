@@ -197,6 +197,8 @@ function UsersTable({ rows, actorId }: { rows: AdminUserRow[]; actorId: string }
                   <span className="text-xs text-destructive">
                     deleted {dt.format(u.deletedAt)}
                   </span>
+                ) : !u.registrationApprovedAt ? (
+                  <span className="text-xs text-amber-600">pending approval</span>
                 ) : !u.isActive ? (
                   <span className="text-xs text-destructive">disabled</span>
                 ) : !u.acceptedTermsAt ? (

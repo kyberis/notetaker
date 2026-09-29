@@ -6,6 +6,7 @@ import {
 } from "@kyberis/agent-os/runtime";
 
 import { db } from "@/lib/db";
+import { isRegistrationApproved } from "@/lib/registration-approval";
 
 /**
  * Daily agent message quota. Telegram and the web agent share one bucket.
@@ -90,9 +91,11 @@ export async function consumeAgentQuota(
 ): Promise<QuotaResult> {
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { id: true },
+    select: { id: true, registrationApprovedAt: true, isActive: true, deletedAt: true },
   });
-  if (!user) return { ok: false, count: 0, limit: 0 };
+  if (!user || !user.isActive || user.deletedAt || !isRegistrationApproved(user)) {
+    return { ok: false, count: 0, limit: 0 };
+  }
 
   const verdict = await consumeQuota(port, userId, now);
   return { ok: verdict.ok, count: verdict.count, limit: verdict.limit };

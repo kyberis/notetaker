@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { errors } from "@/lib/http";
 import { db } from "@/lib/db";
+import { isRegistrationApproved } from "@/lib/registration-approval";
 
 import { authOptions } from "./index";
 
@@ -26,6 +27,12 @@ export async function requireSession(): Promise<AppSession> {
   if (!session?.user) throw errors.unauthorized();
   const u = session.user as AppSession["user"];
   if (!u.id) throw errors.unauthorized();
+  const fresh = await db.user.findUnique({
+    where: { id: u.id },
+    select: { registrationApprovedAt: true, isActive: true, deletedAt: true },
+  });
+  if (!fresh || fresh.deletedAt || !fresh.isActive) throw errors.unauthorized();
+  if (!isRegistrationApproved(fresh)) throw errors.forbidden("Registration pending approval.");
   return { user: u };
 }
 
@@ -51,6 +58,7 @@ export async function pageRequireAuth(): Promise<{ user: AppSession["user"]; loc
       deletedAt: true,
       isActive: true,
       isAdmin: true,
+      registrationApprovedAt: true,
     },
   });
   if (!fresh) redirect("/login");
@@ -58,6 +66,7 @@ export async function pageRequireAuth(): Promise<{ user: AppSession["user"]; loc
   // Disabled by an admin: kick the session out. The login route shows an
   // "account disabled" hint when ?error=disabled is present.
   if (!fresh.isActive) redirect("/login?error=disabled");
+  if (!isRegistrationApproved(fresh)) redirect("/pending-approval");
   return {
     user: { ...session.user, isAdmin: fresh.isAdmin },
     locale: fresh.locale,

@@ -15,6 +15,7 @@ import { dict, type Locale } from "@/lib/i18n";
 import { isLocale } from "@/lib/i18n/locale";
 import { log } from "@/lib/log";
 import { buildRateLimiter, enforceLimit } from "@/lib/rate-limit";
+import { isRegistrationApproved } from "@/lib/registration-approval";
 import {
   answerCallbackQuery,
   deleteTelegramMessage,
@@ -141,6 +142,10 @@ export async function POST(req: Request) {
   // retrying, but neither save the message nor invoke the agent.
   if (!user.isActive) {
     log.info("telegram_message_dropped_disabled_user", { userId: user.id });
+    return NextResponse.json({ ok: true });
+  }
+  if (!isRegistrationApproved(user)) {
+    log.info("telegram_message_dropped_pending_registration", { userId: user.id });
     return NextResponse.json({ ok: true });
   }
 
@@ -334,9 +339,20 @@ async function handleProposalCallback(query: TgCallbackQuery): Promise<void> {
 
   const user = await db.user.findUnique({
     where: { telegramUserId: BigInt(from.id) },
-    select: { id: true, locale: true, deletedAt: true, isActive: true },
+    select: {
+      id: true,
+      locale: true,
+      deletedAt: true,
+      isActive: true,
+      registrationApprovedAt: true,
+    },
   });
-  if (!user || user.deletedAt || !user.isActive) {
+  if (
+    !user ||
+    user.deletedAt ||
+    !user.isActive ||
+    !isRegistrationApproved(user)
+  ) {
     await answerCallbackQuery(query.id);
     return;
   }
@@ -402,6 +418,7 @@ type ResolvedUser = {
   ttsEnabled: boolean;
   deletedAt: Date | null;
   isActive: boolean;
+  registrationApprovedAt: Date | null;
 };
 
 async function resolveUser(message: TgMessage): Promise<ResolvedUser | null> {
@@ -415,6 +432,7 @@ async function resolveUser(message: TgMessage): Promise<ResolvedUser | null> {
       ttsEnabled: true,
       deletedAt: true,
       isActive: true,
+      registrationApprovedAt: true,
     },
   });
   if (existing) return existing;
@@ -434,6 +452,7 @@ async function resolveUser(message: TgMessage): Promise<ResolvedUser | null> {
       ttsEnabled: true,
       deletedAt: true,
       isActive: true,
+      registrationApprovedAt: true,
     },
   });
   if (!candidate) {
@@ -465,6 +484,7 @@ async function resolveUser(message: TgMessage): Promise<ResolvedUser | null> {
     ttsEnabled: candidate.ttsEnabled,
     deletedAt: candidate.deletedAt,
     isActive: candidate.isActive,
+    registrationApprovedAt: candidate.registrationApprovedAt,
   };
 }
 

@@ -10,6 +10,7 @@ export type AdminUserRow = {
   name: string | null;
   isAdmin: boolean;
   isActive: boolean;
+  registrationApprovedAt: Date | null;
   locale: string;
   createdAt: Date;
   lastSeenAt: Date | null;
@@ -74,6 +75,7 @@ export async function listAdminUsers(
         name: true,
         isAdmin: true,
         isActive: true,
+        registrationApprovedAt: true,
         locale: true,
         createdAt: true,
         lastSeenAt: true,
@@ -101,6 +103,7 @@ export async function listAdminUsers(
     name: u.name,
     isAdmin: u.isAdmin,
     isActive: u.isActive,
+    registrationApprovedAt: u.registrationApprovedAt,
     locale: u.locale,
     createdAt: u.createdAt,
     lastSeenAt: u.lastSeenAt,
@@ -171,6 +174,36 @@ export async function setUserActive(opts: {
   });
 
   return updated;
+}
+
+export async function approveUserRegistration(opts: {
+  actorId: string;
+  targetId: string;
+}): Promise<{ id: string; registrationApprovedAt: Date }> {
+  const target = await db.user.findUnique({
+    where: { id: opts.targetId },
+    select: { id: true, registrationApprovedAt: true, deletedAt: true },
+  });
+  if (!target) throw errors.notFound("User not found.");
+  if (target.deletedAt) {
+    throw errors.conflict("User is soft-deleted; cannot approve.");
+  }
+  if (target.registrationApprovedAt) {
+    return { id: target.id, registrationApprovedAt: target.registrationApprovedAt };
+  }
+  const updated = await db.user.update({
+    where: { id: target.id },
+    data: { registrationApprovedAt: new Date() },
+    select: { id: true, registrationApprovedAt: true },
+  });
+  log.info("admin_user_registration_approved", {
+    actorId: opts.actorId,
+    targetId: updated.id,
+  });
+  return {
+    id: updated.id,
+    registrationApprovedAt: updated.registrationApprovedAt ?? new Date(),
+  };
 }
 
 /** Aggregate counters for the admin landing card row. */
