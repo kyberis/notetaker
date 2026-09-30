@@ -22,6 +22,7 @@ export async function GET() {
           telegramVerifiedAt: true,
           acceptedTermsAt: true,
           acceptedTermsVersion: true,
+          registrationApprovedAt: true,
         },
       }),
       db.note.findMany({

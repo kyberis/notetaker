@@ -214,6 +214,16 @@ export const LANDING_COPY = {
  */
 export const CHANGELOG = [
   {
+    version: "0.9.0",
+    date: "2026-09-26",
+    title: "Registration waits for approval",
+    highlights: [
+      "New accounts stay pending until an operator enables them.",
+      "On trefolio.com this is decided once on the unified account (Will, Clara, and the portfolio).",
+      "Self-hosted Will keeps the same pending page when IdP OAuth is off.",
+    ],
+  },
+  {
     version: "0.8.0",
     date: "2026-07-27",
     title: "Will asks before he strikes a note out",

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { dict, type Locale } from "@/lib/i18n";
 import { isLocale } from "@/lib/i18n/locale";
 import { log } from "@/lib/log";
+import { isRegistrationApproved } from "@/lib/registration-approval";
 import { sendMail } from "@/lib/mail/resend";
 import { sendTelegramMessage } from "@/lib/telegram/client";
 import { escapeHtml } from "@/lib/telegram/format";
@@ -34,6 +35,7 @@ export async function dispatchDueReminders(now: Date = new Date()): Promise<{
           locale: true,
           telegramChatId: true,
           deletedAt: true,
+          registrationApprovedAt: true,
         },
       },
     },
@@ -48,8 +50,8 @@ export async function dispatchDueReminders(now: Date = new Date()): Promise<{
   let failed = 0;
 
   for (const reminder of due) {
-    if (reminder.user.deletedAt) {
-      // Soft-deleted users get no proactive messages.
+    if (reminder.user.deletedAt || !isRegistrationApproved(reminder.user)) {
+      // Soft-deleted or still-pending signups get no proactive messages.
       await db.reminder.update({
         where: { id: reminder.id },
         data: { status: "CANCELLED", cancelledAt: now },

@@ -33,7 +33,8 @@ Read this skill **before** completing a change that:
 3. **Modifies AI features** — changes to prompts, the data Will sends to
    the model, the tools the agent can call, or how AI output is displayed.
 4. **Changes signup, login, or consent flows** — Google sign-in, email +
-   password, passkey, accept-terms gate, deletion grace window.
+   password, passkey, accept-terms gate, deletion grace window,
+   registration-approval emails.
 5. **Updates marketing copy** — landing, FAQ, privacy, changelog,
    `llms.txt`, especially claims about security, privacy, "open source",
    or self-hostability.

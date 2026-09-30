@@ -30,6 +30,9 @@ document following
 - [`notes-and-tags`](notes-and-tags.md) — `Note` + `Tag` + `NoteTag`
   data model, per-user tag namespace, source channels (TELEGRAM_TEXT /
   VOICE / PHOTO / PDF / WEB), normalization rules.
+- [`registration-approval`](registration-approval.md) — new accounts stay
+  pending until an operator approves them (IdP-wide on trefolio.com; local
+  fallback when Will auth is self-hosted).
 - [`reminders`](reminders.md) — `Reminder` lifecycle, 1-minute cron
   dispatcher, retry budget (3), email fallback, cancellation on
   soft-delete.

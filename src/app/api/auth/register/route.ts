@@ -7,6 +7,7 @@ import { errors, withApi } from "@/lib/http";
 import { CURRENT_TERMS_VERSION } from "@/lib/legal";
 import { sendVerificationEmail } from "@/lib/mail/verification";
 import { buildRateLimiter, enforceLimit } from "@/lib/rate-limit";
+import { registrationApprovedAtForCreate } from "@/lib/registration-approval";
 import { verifyTurnstile } from "@/lib/turnstile";
 
 const Schema = z.object({
@@ -50,6 +51,7 @@ export async function POST(req: Request) {
         locale: body.locale ?? "en",
         acceptedTermsAt: new Date(),
         acceptedTermsVersion: CURRENT_TERMS_VERSION,
+        registrationApprovedAt: registrationApprovedAtForCreate(),
       },
       select: { id: true, email: true, locale: true },
     });

@@ -58,6 +58,8 @@ model User {
   emailVerified            DateTime?
   isAdmin                  Boolean             @default(false)
   isActive                 Boolean             @default(true)
+  /// Local signup approval when IdP OAuth is off. Null = waiting.
+  registrationApprovedAt   DateTime?
 
   /// Preferred conversation language for the agent. Web UI is English-only.
   /// Supported in v1: en | es | pt | ar.

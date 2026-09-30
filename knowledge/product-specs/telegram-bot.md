@@ -97,6 +97,7 @@ present.
 - **Soft-deleted user → silent drop.** No outbound, no DB writes
   beyond the existing user lookup.
 - **Disabled user (`isActive: false`) → silent drop.**
+- **Pending registration (`registrationApprovedAt` null while the gate is on) → silent drop.**
 - **Quota check before agent.** `consumeAgentQuota` is called before
   `runNoteAgent`.
 - **Voice ≤ 10 minutes.** Longer voice notes get a localised "voice
